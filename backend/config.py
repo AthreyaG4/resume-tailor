@@ -19,5 +19,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # Llama Parse
+    LLAMA_PARSE_API_KEY: str
+
+    # OpenAI
+    OPENAI_API_KEY: str
+
 
 settings = Settings()  # type: ignore
