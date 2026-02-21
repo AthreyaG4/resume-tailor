@@ -11,4 +11,6 @@ langgraph
 langchain
 langchain-openai
 langchain-community
-llama_cloud
+llama_cloud_services
+bs4
+jinja2

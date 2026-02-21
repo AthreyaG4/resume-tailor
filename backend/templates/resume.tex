@@ -1,0 +1,198 @@
+\documentclass[10pt, a4paper]{article}
+
+% -------------------- Page Geometry --------------------
+\usepackage[
+    top=0.7cm,
+    bottom=0.7cm,
+    left=1cm,
+    right=1cm,
+    footskip=1cm
+]{geometry}
+
+% -------------------- Fonts (ATS-safe, modern) --------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{XCharter}
+% \renewcommand{\familydefault}{\sfdefault}
+
+% Global font size (sweet spot for density + readability)
+\fontsize{10.5pt}{12.5pt}\selectfont
+
+% -------------------- Core Packages --------------------
+\usepackage[explicit]{titlesec}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{bookmark}
+\usepackage{lastpage}
+\usepackage{changepage}
+\usepackage{paracol}
+\usepackage{needspace}
+\usepackage{ifthen}
+\usepackage{iftex}
+\usepackage{calc}
+\usepackage{fontawesome5}
+
+% -------------------- Colors --------------------
+\definecolor{primaryColor}{RGB}{0,0,0}
+
+% -------------------- Hyperlinks & Metadata --------------------
+\hypersetup{
+    pdftitle={Resume},
+    pdfauthor={Your Name},
+    colorlinks=true,
+    urlcolor=primaryColor
+}
+
+% -------------------- ATS / Unicode Safety --------------------
+\ifPDFTeX
+    \input{glyphtounicode}
+    \pdfgentounicode=1
+\fi
+
+% -------------------- Global Layout Tweaks --------------------
+\pagestyle{empty}
+\setcounter{secnumdepth}{0}
+\setlength{\parindent}{0pt}
+\setlength{\topskip}{0pt}
+\setlength{\columnsep}{0.15cm}
+
+% -------------------- Section Formatting --------------------
+\titleformat{\section}
+{
+    \needspace{4\baselineskip}
+    \large\bfseries\color{primaryColor}
+}
+{}
+{0pt}
+{
+    #1\hspace{0.15cm}\titlerule[0.6pt]
+}
+
+\titlespacing{\section}{0pt}{0.4em}{0.2em}
+
+% -------------------- Lists --------------------
+\setlist[itemize]{nosep, leftmargin=*}
+
+\newenvironment{highlights}{
+    \begin{itemize}[
+        topsep=2pt,
+        parsep=0pt,
+        partopsep=0pt,
+        itemsep=2pt,
+        leftmargin=0.45cm
+    ]
+}{
+    \end{itemize}
+}
+
+% -------------------- Column Layout Helpers --------------------
+\newenvironment{onecolentry}{
+    \begin{adjustwidth}{0.2cm}{0.2cm}
+}{
+    \end{adjustwidth}
+}
+
+\newenvironment{twocolentry}[2][]{
+    \onecolentry
+    \def\secondColumn{#2}
+    \setcolumnwidth{\fill,4.5cm}
+    \begin{paracol}{2}
+}{
+    \switchcolumn\raggedleft\secondColumn
+    \end{paracol}
+    \endonecolentry
+}
+
+% -------------------- Header --------------------
+\newenvironment{header}{
+    \centering\color{primaryColor}\linespread{1.4}
+}{
+    \par
+}
+
+% -------------------- External Links (minimal, ATS-safe) --------------------
+\let\hrefWithoutArrow\href
+\renewcommand{\href}[2]{\hrefWithoutArrow{#1}{\ifthenelse{\equal{#2}{}}{ }{#2 }\raisebox{.15ex}{\footnotesize \faExternalLink*}}}
+
+
+
+\begin{document}
+    \newcommand{\AND}{\unskip
+        \cleaders\copy\ANDbox\hskip\wd\ANDbox
+        \ignorespaces
+    }
+    \newsavebox\ANDbox
+    \sbox\ANDbox{}
+
+    \begin{header}
+        \fontsize{15 pt}{15 pt}
+        \textbf{(((name)))}
+
+        \normalsize
+        ((*set ns = namespace(first=true)*))
+        ((*if email*))
+        \mbox{\hrefWithoutArrow{mailto:(((email)))}{\hspace*{0.13cm}(((email)))}}%
+        ((*set ns.first = false*))
+        ((*endif*))
+        ((*if phone*))
+        ((*if not ns.first*))\kern 0.25 cm~|~\kern 0.25 cm%
+        ((*endif*))
+        \mbox{\hrefWithoutArrow{tel:(((phone)))}{\hspace*{0.13cm}(((phone)))}}%
+        ((*set ns.first = false*))
+        ((*endif*))
+        ((*if linkedin*))
+        ((*if not ns.first*))\kern 0.25 cm~|~\kern 0.25 cm%
+        ((*endif*))
+        \mbox{\hrefWithoutArrow{(((linkedin)))}{\hspace*{0.13cm}LinkedIn}}%
+        ((*set ns.first = false*))
+        ((*endif*))
+        ((*if github*))
+        ((*if not ns.first*))\kern 0.25 cm~|~\kern 0.25 cm%
+        ((*endif*))
+        \mbox{\hrefWithoutArrow{(((github)))}{\hspace*{0.13cm}GitHub}}%
+        ((*endif*))
+    \end{header}
+
+    \section{Education}    
+        ((*for item in education*))
+        \textbf{(((item.institution))), (((item.location)))} \hfill \textbf{(((item.start_date))) – (((item.end_date)))} \\
+        (((item.degree))) in (((item.field_of_study))) \hfill ((*if item.gpa*))GPA: (((item.gpa)))((*endif*))
+        ((*endfor*))
+    \vspace{0.1cm}
+
+    \section{Skills}
+        ((*for category in skills*))
+        \textbf{(((category.category))):} (((", ".join(category.skills))))((*if not loop.last*)) \\((*endif*))
+        ((*endfor*))
+    \vspace{0.1cm}
+
+    \section{Experience}
+        ((*for job in experience*))
+        \textbf{(((job.role))) | (((job.company))) | (((job.location)))} \hfill \textbf{(((job.start_date))) -- (((job.end_date)))}
+        \begin{highlights}
+            ((*for bullet in job.bullets*))
+            \item (((bullet)))
+            ((*endfor*))
+        \end{highlights}
+        ((*endfor*))
+    \vspace{0.1cm}
+
+    \section{Projects}
+        ((*for project in projects*))
+        ((*if project.link*))
+        \textbf{\href{(((project.link)))}{(((project.title))) | (((", ".join(project.technologies))))}}
+        ((*else*))
+        \textbf{(((project.title))) | (((", ".join(project.technologies))))}
+        ((*endif*))
+        
+        \begin{highlights}
+            ((*for bullet in project.bullets*))
+            \item (((bullet)))
+            ((*endfor*))
+        \end{highlights}
+        ((*endfor*))
+\end{document}
