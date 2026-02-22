@@ -12,6 +12,19 @@ from schemas import (
 from agent.tailor.state import TailorState
 from langgraph.types import interrupt
 from typing import Literal
+from agent.tailor.prompts import (
+    JD_PARSING_SYSTEM_PROMPT,
+    SKILL_MATCH_SYSTEM_PROMPT,
+    skill_match_user_prompt,
+    PROJECT_SELECTION_SYSTEM_PROMPT,
+    project_selection_user_prompt,
+    SKILL_SELECTION_SYSTEM_PROMPT,
+    skill_selection_user_prompt,
+    PROJECT_REWRITE_SYSTEM_PROMPT,
+    project_rewrite_user_prompt,
+    EXPERIENCE_REWRITE_SYSTEM_PROMPT,
+    experience_rewrite_user_prompt,
+)
 
 
 model = init_chat_model("gpt-5-nano")
@@ -28,7 +41,7 @@ def jd_parsing_node(state: TailorState) -> TailorState:
     messages = [
         {
             "role": "system",
-            "content": "Parse job descriptions into structured JSON. Extract only what is explicitly stated. Skills must be atomic keywords (1-3 words, normalized, no duplicates, no 'experience with').",
+            "content": JD_PARSING_SYSTEM_PROMPT,
         },
         {"role": "user", "content": f"JD:\n{state.raw_html}"},
     ]
@@ -61,16 +74,13 @@ def skill_match_node(state: TailorState) -> TailorState:
         messages = [
             {
                 "role": "system",
-                "content": "You are a skill matching assistant. Given a list of resume skills and unmatched JD skills, identify which JD skills are semantically covered by resume skills (e.g. 'k8s' matches 'Kubernetes', 'Postgres' matches 'PostgreSQL'). Return only the JD skills that are actually covered.",
+                "content": SKILL_MATCH_SYSTEM_PROMPT,
             },
             {
                 "role": "user",
-                "content": f"""Resume skills: {list(resume)}
-
-Unmatched must-have JD skills: {list(missing_must_have)}
-Unmatched nice-to-have JD skills: {list(missing_nice_to_have)}
-
-Which unmatched JD skills are semantically covered by the resume skills?""",
+                "content": skill_match_user_prompt(
+                    resume, missing_must_have, missing_nice_to_have
+                ),
             },
         ]
 
@@ -98,22 +108,8 @@ Which unmatched JD skills are semantically covered by the resume skills?""",
 
 def project_selection_node(state: TailorState):
     messages = state.project_messages or [
-        {
-            "role": "system",
-            "content": """You are a resume tailoring assistant. Select the most relevant projects that align with the job description.
-
-Rules:
-- If 3 or fewer projects exist, select all of them.
-- If more than 3 projects exist, select the 3 most relevant.
-- Relevance is not just exact skill matches — consider transferable skills, similar tools, and domain experience.
-- A strong work experience that demonstrates the same competency is also valid context for selection.
-
-Return only the selected project objects.""",
-        },
-        {
-            "role": "user",
-            "content": f"JD Keywords: {state.jd_json.keywords}\nMust-have skills: {state.skill_match_results.matched_must_have}\n\nProjects:\n{state.resume_json.projects}",
-        },
+        {"role": "system", "content": PROJECT_SELECTION_SYSTEM_PROMPT},
+        {"role": "user", "content": project_selection_user_prompt(state)},
     ]
 
     response = project_selection_model.invoke(messages)
@@ -166,21 +162,8 @@ def should_reselect_projects(
 
 def skill_selection_node(state: TailorState):
     messages = state.skill_messages or [
-        {
-            "role": "system",
-            "content": """You are a resume tailoring assistant. Select and reorder the candidate's skills to best align with the job description.
-
-Rules:
-- Prioritize skills that directly match the JD.
-- Include adjacent and complementary skills in the same domain even if not explicitly mentioned (e.g. if JD mentions PyTorch, including HuggingFace is a good idea).
-- Drop skills that are completely irrelevant to the role.
-- Order by relevance — most relevant first.
-- Do not invent skills the candidate doesn't have.""",
-        },
-        {
-            "role": "user",
-            "content": f"JD Keywords: {state.jd_json.keywords}\nMust-have skills: {state.skill_match_results.matched_must_have}\nMissing skills: {state.skill_match_results.missing_must_have}\n\nCandidate skills: {state.resume_json.skills}",
-        },
+        {"role": "system", "content": SKILL_SELECTION_SYSTEM_PROMPT},
+        {"role": "user", "content": skill_selection_user_prompt(state)},
     ]
 
     response = skill_selection_model.invoke(messages)
@@ -233,21 +216,8 @@ def should_reselect_skills(
 
 def project_rewrite_node(state: TailorState):
     messages = state.project_rewrite_messages or [
-        {
-            "role": "system",
-            "content": """You are a resume tailoring assistant. Rewrite project bullets to better align with the job description.
-
-Rules:
-- Rewrite bullets to emphasize relevant skills and technologies from the JD
-- Keep bullets concise and achievement-focused (use numbers/metrics where possible)
-- Do not invent technologies or experiences not present in the original
-- Maintain the same project structure, only rewrite the bullets
-- Use action verbs that align with the JD's language""",
-        },
-        {
-            "role": "user",
-            "content": f"JD Keywords: {state.jd_json.keywords}\nMust-have skills: {state.skill_match_results.matched_must_have}\n\nProjects to rewrite:\n{state.selected_projects}",
-        },
+        {"role": "system", "content": PROJECT_REWRITE_SYSTEM_PROMPT},
+        {"role": "user", "content": project_rewrite_user_prompt(state)},
     ]
 
     response = project_rewrite_model.invoke(messages)
@@ -303,22 +273,8 @@ def should_rewrite_projects(
 
 def experience_rewrite_node(state: TailorState):
     messages = state.experience_rewrite_messages or [
-        {
-            "role": "system",
-            "content": """You are a resume tailoring assistant. Rewrite experience bullets to better align with the job description.
-
-Rules:
-- Rewrite bullets to emphasize relevant skills and technologies from the JD
-- Keep bullets concise and achievement-focused (use numbers/metrics where possible)
-- Do not invent technologies or experiences not present in the original
-- Maintain the same experience structure, only rewrite the bullets
-- Use action verbs that align with the JD's language
-- Do not change company, role, dates or location""",
-        },
-        {
-            "role": "user",
-            "content": f"JD Keywords: {state.jd_json.keywords}\nMust-have skills: {state.skill_match_results.matched_must_have}\n\nExperience to rewrite:\n{state.resume_json.experience}",
-        },
+        {"role": "system", "content": EXPERIENCE_REWRITE_SYSTEM_PROMPT},
+        {"role": "user", "content": experience_rewrite_user_prompt(state)},
     ]
 
     response = experience_rewrite_model.invoke(messages)
@@ -335,8 +291,6 @@ Rules:
     return {
         "rewritten_experience": response.rewritten_experience,
         "experience_rewrite_messages": messages_to_store,
-        "experience_rewrite_revision_count": state.experience_rewrite_revision_count
-        + 1,
     }
 
 

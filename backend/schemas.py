@@ -123,6 +123,10 @@ class ExperienceRewriteResponse(BaseModel):
     rewritten_experience: list[Experience]
 
 
+class IngestionHumanReviewResponse(BaseModel):
+    edited_resume: ResumeSchema
+
+
 class HumanReviewResponse(BaseModel):
     approved: bool
     feedback: Optional[str] = None

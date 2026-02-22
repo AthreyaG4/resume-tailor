@@ -8,9 +8,12 @@ pyjwt
 pwdlib[argon2]
 python-multipart
 langgraph
+langgraph-checkpoint-postgres
 langchain
 langchain-openai
 langchain-community
 llama_cloud_services
 bs4
 jinja2
+boto3
+psycopg[binary,pool]

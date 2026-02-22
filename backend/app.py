@@ -3,6 +3,7 @@ from db import init_db
 from routes.health import route as health_route
 from routes.auth import route as login_route
 from routes.user import route as user_route
+from routes.ingest import route as ingest_route
 from routes.tailor import route as tailor_route
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -27,4 +28,5 @@ def on_startup():
 app.include_router(health_route)
 app.include_router(login_route)
 app.include_router(user_route)
+app.include_router(ingest_route)
 app.include_router(tailor_route)

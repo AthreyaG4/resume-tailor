@@ -18,7 +18,6 @@ from agent.tailor.nodes import (
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import InMemorySaver
 from agent.tailor.state import TailorState
-from IPython.display import Image, display
 
 tailor_graph = StateGraph(TailorState)
 checkpointer = InMemorySaver()
@@ -65,4 +64,3 @@ tailor_graph.add_conditional_edges(
 tailor_graph.add_edge("assemble_resume_node", END)
 
 tailor_agent = tailor_graph.compile(checkpointer=checkpointer)
-display(Image(tailor_agent.get_graph(xray=True).draw_mermaid_png()))
