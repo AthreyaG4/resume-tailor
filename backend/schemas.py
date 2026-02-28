@@ -2,13 +2,13 @@ from pydantic import BaseModel, EmailStr, Field
 from uuid import UUID
 from datetime import datetime
 from typing import List, Optional
+from models import ApplicationStatus
 
 
 class UserCreateRequest(BaseModel):
     name: str
-    username: str
-    password: str
     email: EmailStr
+    password: str
 
 
 class JWTToken(BaseModel):
@@ -19,12 +19,69 @@ class JWTToken(BaseModel):
 class UserResponse(BaseModel):
     id: UUID
     name: str
-    username: str
     email: EmailStr
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class ResumeResponse(BaseModel):
+    id: UUID
+    user_id: UUID
+    resume_json: Optional[dict] = None
+    created_at: datetime
+    updated_at: datetime
+    status: str
+
+    model_config = {"from_attributes": True}
+
+
+class ApplicationCreateRequest(BaseModel):
+    job_id: str
+
+
+class ApplicationStatusUpdate(BaseModel):
+    status: ApplicationStatus
+
+
+class ApplicationsResponse(BaseModel):
+    id: UUID
+    status: ApplicationStatus
+    company_name: Optional[str] = None
+    title: Optional[str] = None
+    created_at: datetime
+
+
+class ApplicationResponse(BaseModel):
+    id: UUID
+    user_id: UUID
+    company_name: Optional[str] = None
+    title: Optional[str] = None
+    job_id: str
+    job_description: Optional[str] = None
+    skill_match_results: Optional[dict] = None
+    tailored_resume_json: Optional["ResumeSchema"] = None
+    resume_json: Optional["ResumeSchema"] = None
+    pdf_key: Optional[str] = None
+    status: ApplicationStatus
+    current_node: Optional[str] = None
+    steps: list["ApplicationStepResponse"] = []
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ApplicationStepResponse(BaseModel):
+    id: UUID
+    application_id: UUID
+    node: str
+    label: str
+    data: Optional[dict] = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 class Experience(BaseModel):
@@ -121,10 +178,6 @@ class ProjectRewriteResponse(BaseModel):
 
 class ExperienceRewriteResponse(BaseModel):
     rewritten_experience: list[Experience]
-
-
-class IngestionHumanReviewResponse(BaseModel):
-    edited_resume: ResumeSchema
 
 
 class HumanReviewResponse(BaseModel):

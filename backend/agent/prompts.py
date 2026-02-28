@@ -17,7 +17,7 @@ def skill_match_user_prompt(resume, missing_must_have, missing_nice_to_have):
         f"Resume skills: {list(resume)}\n\n"
         f"Unmatched must-have JD skills: {list(missing_must_have)}\n"
         f"Unmatched nice-to-have JD skills: {list(missing_nice_to_have)}\n\n"
-        f"Which unmatched JD skills are semantically covered by the resume skills?",
+        f"Which unmatched JD skills are semantically covered by the resume skills?"
     )
 
 

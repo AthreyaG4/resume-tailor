@@ -16,14 +16,6 @@ def read_users_me(current_user: User = Depends(get_current_active_user)):
 
 @route.post("/", response_model=UserResponse)
 def create_user(user: UserCreateRequest, db: Session = Depends(get_db)):
-    existingUser = db.query(User).filter(User.username == user.username).first()
-
-    if existingUser:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"username": "Username already exists"},
-        )
-
     existingEmail = db.query(User).filter(User.email == user.email).first()
 
     if existingEmail:
@@ -36,7 +28,6 @@ def create_user(user: UserCreateRequest, db: Session = Depends(get_db)):
 
     db_user = User(
         name=user.name,
-        username=user.username,
         password_hash=hashed_password,
         email=user.email,
     )

@@ -3,6 +3,8 @@ import subprocess
 import tempfile
 import os
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 
 def make_pdf(tailored_resume) -> bytes:
     def latex_escape(text):
@@ -17,7 +19,7 @@ def make_pdf(tailored_resume) -> bytes:
         )
 
     env = Environment(
-        loader=FileSystemLoader("."),
+        loader=FileSystemLoader(os.path.join(BASE_DIR, "templates")),
         block_start_string="((*",
         block_end_string="*))",
         variable_start_string="(((",
@@ -29,7 +31,7 @@ def make_pdf(tailored_resume) -> bytes:
         lstrip_blocks=True,
     )
 
-    template = env.get_template("../templates/resume.tex")
+    template = env.get_template("resume.tex")
     output = template.render(**tailored_resume.model_dump())
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -39,7 +41,19 @@ def make_pdf(tailored_resume) -> bytes:
         with open(tex_path, "w") as f:
             f.write(output)
 
-        subprocess.run(
+        # subprocess.run(
+        #     [
+        #         "pdflatex",
+        #         "-interaction=nonstopmode",
+        #         "-output-directory",
+        #         tmpdir,
+        #         tex_path,
+        #     ],
+        #     check=True,
+        #     capture_output=True,
+        # )
+
+        result = subprocess.run(
             [
                 "pdflatex",
                 "-interaction=nonstopmode",
@@ -47,9 +61,14 @@ def make_pdf(tailored_resume) -> bytes:
                 tmpdir,
                 tex_path,
             ],
-            check=True,
             capture_output=True,
+            text=True,
         )
+
+        if result.returncode != 0:
+            print("STDOUT:", result.stdout)
+            print("STDERR:", result.stderr)
+            raise subprocess.CalledProcessError(result.returncode, result.args)
 
         with open(pdf_path, "rb") as f:
             return f.read()

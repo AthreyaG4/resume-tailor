@@ -9,10 +9,10 @@ from schemas import (
     SkillMatchResultSchema,
     HumanReviewResponse,
 )
-from agent.tailor.state import TailorState
+from agent.state import TailorState
 from langgraph.types import interrupt
 from typing import Literal
-from agent.tailor.prompts import (
+from agent.prompts import (
     JD_PARSING_SYSTEM_PROMPT,
     SKILL_MATCH_SYSTEM_PROMPT,
     skill_match_user_prompt,

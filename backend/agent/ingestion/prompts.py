@@ -1,1 +1,0 @@
-INGESTION_SYSTEM_PROMPT = "Extract resume information into structured JSON. Only extract what is explicitly present. No inference or embellishment. Skills must be atomic keywords with a category (1-3 words, no 'experience with'). Empty list if section missing."

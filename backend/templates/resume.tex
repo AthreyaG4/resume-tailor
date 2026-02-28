@@ -173,11 +173,13 @@
     \section{Experience}
         ((*for job in experience*))
         \textbf{(((job.role))) | (((job.company))) | (((job.location)))} \hfill \textbf{(((job.start_date))) -- (((job.end_date)))}
+        ((*if bullets*))
         \begin{highlights}
-            ((*for bullet in job.bullets*))
-            \item (((bullet)))
+            ((*for bullet in bullets*))
+                \item (((bullet)))
             ((*endfor*))
         \end{highlights}
+        ((*endif*))
         ((*endfor*))
     \vspace{0.1cm}
 
@@ -189,10 +191,12 @@
         \textbf{(((project.title))) | (((", ".join(project.technologies))))}
         ((*endif*))
         
+        ((*if bullets*))
         \begin{highlights}
-            ((*for bullet in project.bullets*))
-            \item (((bullet)))
+            ((*for bullet in bullets*))
+                \item (((bullet)))
             ((*endfor*))
         \end{highlights}
+        ((*endif*))
         ((*endfor*))
 \end{document}

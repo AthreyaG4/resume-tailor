@@ -1,4 +1,4 @@
-from agent.tailor.nodes import (
+from agent.nodes import (
     jd_parsing_node,
     skill_match_node,
     project_selection_node,
@@ -17,7 +17,7 @@ from agent.tailor.nodes import (
 )
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import InMemorySaver
-from agent.tailor.state import TailorState
+from agent.state import TailorState
 
 tailor_graph = StateGraph(TailorState)
 checkpointer = InMemorySaver()
