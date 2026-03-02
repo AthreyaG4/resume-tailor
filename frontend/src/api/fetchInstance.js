@@ -1,16 +1,15 @@
 import { handleUnauthorized } from "../lib/authEvents";
 
-export const API_BASE_URL = "https://resume-tailor-3v42.vercel.app/api";
+export const API_BASE_URL = "http://localhost:5000/api";
 
 async function fetchAPI(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
-
-  const { headers, ...restOptions } = options;
+  const { headers, isFormData, ...restOptions } = options;
 
   const defaultOptions = {
     ...restOptions,
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...headers,
     },
   };
