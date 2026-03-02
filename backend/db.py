@@ -8,6 +8,7 @@ DATABASE_URL = (
     f"{settings.DB_HOST}:"
     f"{settings.DB_PORT}/"
     f"{settings.DB_NAME}"
+    "?sslmode=require"
 )
 
 engine = create_engine(DATABASE_URL, echo=False)
