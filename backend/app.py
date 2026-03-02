@@ -12,7 +12,7 @@ app = FastAPI()
 origins = [
     "http://localhost",
     "http://localhost:5173",
-    "https://resume-tailor-omega.vercel.app/",
+    "https://resume-tailor-omega.vercel.app",
 ]
 
 app.add_middleware(
