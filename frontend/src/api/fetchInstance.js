@@ -1,6 +1,6 @@
 import { handleUnauthorized } from "../lib/authEvents";
 
-export const API_BASE_URL = "http://localhost:5000/api";
+export const API_BASE_URL = "https://resume-tailor-3v42.vercel.app/api";
 
 async function fetchAPI(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
