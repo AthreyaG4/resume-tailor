@@ -18,15 +18,13 @@ export async function getApplication(token, application_id) {
   return response.json();
 }
 
-export async function createApplication(token, job_id) {
+export async function createApplication(token, payload) {
   const response = await fetchAPI("/applications", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({
-      job_id,
-    }),
+    body: JSON.stringify(payload),
   });
 
   return response.json();

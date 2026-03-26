@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 from uuid import UUID
 from datetime import datetime
 from typing import List, Optional
@@ -38,7 +38,16 @@ class ResumeResponse(BaseModel):
 
 
 class ApplicationCreateRequest(BaseModel):
-    job_id: str
+    job_id: Optional[str] = None
+    job_description: Optional[str] = None
+    company_name: Optional[str] = None
+    title: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_input(self):
+        if not self.job_id and not self.job_description:
+            raise ValueError("Either job_id or job_description must be provided.")
+        return self
 
 
 class ApplicationStatusUpdate(BaseModel):
@@ -64,6 +73,7 @@ class ApplicationResponse(BaseModel):
     tailored_resume_json: Optional["ResumeSchema"] = None
     resume_json: Optional["ResumeSchema"] = None
     pdf_key: Optional[str] = None
+    latex: Optional[str] = None
     status: ApplicationStatus
     current_node: Optional[str] = None
     steps: list["ApplicationStepResponse"] = []
@@ -163,7 +173,7 @@ class SkillMatchResultSchema(BaseModel):
 
 
 class ProjectSelectResponseSchema(BaseModel):
-    selected_projects: list[Project]
+    selected_project_indexes: list[int]
 
 
 class SkillSelectionResponse(BaseModel):
@@ -183,3 +193,4 @@ class ExperienceRewriteResponse(BaseModel):
 class HumanReviewResponse(BaseModel):
     approved: bool
     feedback: Optional[str] = None
+    edited_skills: Optional[list[dict]] = None

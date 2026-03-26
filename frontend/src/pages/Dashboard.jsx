@@ -1,13 +1,6 @@
 import { useState } from "react";
 import { Button } from "../components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -24,6 +17,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useApplications } from "../hooks/useApplications";
 import { useResume } from "../hooks/useResume";
 import { Link, useNavigate } from "react-router";
+import { toast } from "../components/ui/sonner.jsx";
 
 export default function Dashboard() {
   const { applications, isLoading, createApplication, deleteApplication } =
@@ -35,19 +29,30 @@ export default function Dashboard() {
   const [isCreating, setIsCreating] = useState(false);
   const [jobId, setJobId] = useState("");
   const [jobDescription, setJobDescription] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
 
   const handleCreate = async () => {
     setIsCreating(true);
     try {
-      const applicationId = await createApplication(jobId);
+      const applicationId = await createApplication({
+        job_id: jobId || "",
+        job_description: jobDescription || "",
+        company_name: companyName || "",
+        title: jobTitle || "",
+      });
       setIsNewAppOpen(false);
       navigate(`/applications/${applicationId}`);
-    } catch (e) {
-      // Error handled in hook
+    } catch (err) {
+      toast.error(err.detail);
     } finally {
       setIsCreating(false);
     }
   };
+
+  const isValid =
+    jobId.trim() ||
+    (companyName.trim() && jobTitle.trim() && jobDescription.trim());
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -123,21 +128,47 @@ export default function Dashboard() {
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="jobId">Job ID / LinkedIn URL (Optional)</Label>
+                <Label htmlFor="jobId">LinkedIn Job ID (Optional)</Label>
                 <Input
                   id="jobId"
                   value={jobId}
                   onChange={(e) => setJobId(e.target.value)}
-                  placeholder="e.g. 12345 or https://linkedin.com/jobs/..."
+                  placeholder="e.g. 4234865656"
                 />
+                <p className="text-xs text-muted-foreground">
+                  We'll automatically fetch the job details from LinkedIn.
+                </p>
               </div>
+
               <div className="relative flex items-center py-2">
-                <div className="flex-grow border-t border-border"></div>
+                <div className="flex-grow border-t border-border" />
                 <span className="flex-shrink-0 mx-4 text-muted-foreground text-xs uppercase">
                   OR
                 </span>
-                <div className="flex-grow border-t border-border"></div>
+                <div className="flex-grow border-t border-border" />
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="companyName">Company Name</Label>
+                  <Input
+                    id="companyName"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="Anthropic"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="jobTitle">Job Title</Label>
+                  <Input
+                    id="jobTitle"
+                    value={jobTitle}
+                    onChange={(e) => setJobTitle(e.target.value)}
+                    placeholder="Software Engineer"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="jd">Job Description</Label>
                 <Textarea
@@ -152,7 +183,7 @@ export default function Dashboard() {
             <DialogFooter>
               <Button
                 onClick={handleCreate}
-                disabled={(!jobId && !jobDescription) || isCreating}
+                disabled={!isValid || isCreating}
                 className="w-full btn-primary"
               >
                 {isCreating ? "Creating..." : "Start Tailoring"}
@@ -177,7 +208,7 @@ export default function Dashboard() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {applications?.map((app) => (
             <div key={app.id} className="relative group">
               <Link to={`/applications/${app.id}`}>

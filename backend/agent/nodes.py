@@ -8,6 +8,7 @@ from schemas import (
     ExperienceRewriteResponse,
     SkillMatchResultSchema,
     HumanReviewResponse,
+    SkillCategory,
 )
 from agent.state import TailorState
 from langgraph.types import interrupt
@@ -25,6 +26,7 @@ from agent.prompts import (
     EXPERIENCE_REWRITE_SYSTEM_PROMPT,
     experience_rewrite_user_prompt,
 )
+import json
 
 
 model = init_chat_model("gpt-5-nano")
@@ -114,17 +116,27 @@ def project_selection_node(state: TailorState):
 
     response = project_selection_model.invoke(messages)
 
+    selected_projects = [
+        state.resume_json.projects[i]
+        for i in response.selected_project_indexes
+        if 0 <= i < len(state.resume_json.projects)
+    ]
+
+    assistant_payload = {
+        "selected_projects": [p.model_dump() for p in selected_projects]
+    }
+
     if not state.project_messages:
         messages_to_store = messages + [
-            {"role": "assistant", "content": response.model_dump_json()}
+            {"role": "assistant", "content": json.dumps(assistant_payload)}
         ]
     else:
         messages_to_store = [
-            {"role": "assistant", "content": response.model_dump_json()}
+            {"role": "assistant", "content": json.dumps(assistant_payload)}
         ]
 
     return {
-        "selected_projects": response.selected_projects,
+        "selected_projects": selected_projects,
         "project_messages": messages_to_store,
     }
 
@@ -187,31 +199,13 @@ def skill_selection_review_node(state: TailorState):
     human_response = interrupt(
         {
             "selected_skills": [s.model_dump() for s in state.selected_skills],
-            "message": "Review the selected skills. Approve or provide feedback.",
+            "message": "Review the selected skills. Verify and Approve.",
         }
     )
 
     response = HumanReviewResponse(**human_response)
 
-    if response.approved:
-        return {}
-    else:
-        return {
-            "skill_messages": [
-                {
-                    "role": "user",
-                    "content": f"Human feedback: {response.feedback}. Please revise.",
-                }
-            ]
-        }
-
-
-def should_reselect_skills(
-    state: TailorState,
-) -> Literal["skill_selection_node", "project_rewrite_node"]:
-    if state.skill_messages and state.skill_messages[-1]["role"] == "user":
-        return "skill_selection_node"
-    return "project_rewrite_node"
+    return {"selected_skills": [SkillCategory(**s) for s in response.edited_skills]}
 
 
 def project_rewrite_node(state: TailorState):

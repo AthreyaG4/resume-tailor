@@ -11,7 +11,6 @@ from agent.nodes import (
     experience_rewrite_review_node,
     assemble_resume_node,
     should_reselect_projects,
-    should_reselect_skills,
     should_rewrite_projects,
     should_rewrite_experience,
 )
@@ -44,11 +43,7 @@ tailor_graph.add_conditional_edges(
     ["project_selection_node", "skill_selection_node"],
 )
 tailor_graph.add_edge("skill_selection_node", "skill_selection_review_node")
-tailor_graph.add_conditional_edges(
-    "skill_selection_review_node",
-    should_reselect_skills,
-    ["skill_selection_node", "project_rewrite_node"],
-)
+tailor_graph.add_edge("skill_selection_review_node", "project_rewrite_node")
 tailor_graph.add_edge("project_rewrite_node", "project_rewrite_review_node")
 tailor_graph.add_conditional_edges(
     "project_rewrite_review_node",

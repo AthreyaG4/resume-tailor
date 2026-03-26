@@ -66,6 +66,7 @@ class Application(Base):
     skill_match_results = Column(JSON)
     tailored_resume_json = Column(JSON)
     pdf_key = Column(String, nullable=True)
+    latex = Column(String, nullable=True)
     status = Column(
         Enum(ApplicationStatus), default=ApplicationStatus.TAILORING, nullable=False
     )

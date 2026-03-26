@@ -41,18 +41,6 @@ def make_pdf(tailored_resume) -> bytes:
         with open(tex_path, "w") as f:
             f.write(output)
 
-        # subprocess.run(
-        #     [
-        #         "pdflatex",
-        #         "-interaction=nonstopmode",
-        #         "-output-directory",
-        #         tmpdir,
-        #         tex_path,
-        #     ],
-        #     check=True,
-        #     capture_output=True,
-        # )
-
         result = subprocess.run(
             [
                 "pdflatex",
@@ -71,4 +59,4 @@ def make_pdf(tailored_resume) -> bytes:
             raise subprocess.CalledProcessError(result.returncode, result.args)
 
         with open(pdf_path, "rb") as f:
-            return f.read()
+            return f.read(), output

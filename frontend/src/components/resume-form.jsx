@@ -225,6 +225,14 @@ export function ResumeForm({ defaultValues, onSubmit, isSubmitting }) {
                     className="min-h-[300px]"
                   />
                 </div>
+                <div className="space-y-3">
+                  <Label>Technologies</Label>
+                  <TechnologiesField
+                    control={form.control}
+                    index={index}
+                    form={form}
+                  />
+                </div>
               </CardContent>
             </Card>
           ))}
@@ -313,6 +321,67 @@ export function ResumeForm({ defaultValues, onSubmit, isSubmitting }) {
         </Button>
       </div>
     </form>
+  );
+}
+
+function TechnologiesField({ control, index, form }) {
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: `projects.${index}.technologies`,
+  });
+  const [input, setInput] = useState("");
+
+  function handleAdd() {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    append(trimmed);
+    setInput("");
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAdd();
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-1.5 min-h-[32px]">
+        {fields.map((field, i) => (
+          <span
+            key={field.id}
+            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200"
+          >
+            {form.getValues(`projects.${index}.technologies.${i}`)}
+            <button
+              type="button"
+              onClick={() => remove(i)}
+              className="hover:text-red-500 transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <Input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Add technology..."
+          className="text-sm"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleAdd}
+          className="shrink-0"
+        >
+          Add
+        </Button>
+      </div>
+    </div>
   );
 }
 

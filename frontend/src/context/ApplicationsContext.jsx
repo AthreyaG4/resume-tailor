@@ -28,13 +28,14 @@ export function ApplicationsProvider({ children }) {
     fetchApplications();
   }, [token]);
 
-  async function createApplication(job_id) {
+  async function createApplication(payload) {
     try {
-      const response = await api.createApplication(token, job_id);
+      const response = await api.createApplication(token, payload);
       await fetchApplications();
       return response.application_id;
     } catch (err) {
       setError(err);
+      throw err;
     }
   }
 

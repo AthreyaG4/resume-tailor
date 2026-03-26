@@ -6,6 +6,11 @@ def fetch_job_description(jobID: str):
     target_url = f"https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{jobID}"
     resp = requests.get(target_url)
 
+    if resp.status_code == 404:
+        raise ValueError(f"Job ID {jobID} not found on LinkedIn.")
+
+    resp.raise_for_status()
+
     soup = BeautifulSoup(resp.text, "html.parser")
 
     try:

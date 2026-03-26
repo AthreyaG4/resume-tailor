@@ -12,6 +12,8 @@ import {
   ChevronDown,
   ChevronUp,
   FileDown,
+  Copy,
+  Check,
 } from "lucide-react";
 import { useParams } from "react-router";
 import { useAuth } from "../hooks/useAuth";
@@ -40,10 +42,10 @@ const NODE_META = {
 };
 
 const INTERRUPT_LABELS = {
-  project_selection_node: "Review selected projects",
-  skill_selection_node: "Review skill ordering",
-  project_rewrite_node: "Review rewritten projects",
-  experience_rewrite_node: "Review rewritten experience",
+  project_selection_review_node: "Review selected projects",
+  skill_selection_review_node: "Review skill selection",
+  project_rewrite_review_node: "Review rewritten projects",
+  experience_rewrite_review_node: "Review rewritten experience",
 };
 
 const TERMINAL_STATUSES = [
@@ -217,11 +219,6 @@ function ProjectSelectionData({ data }) {
           className="rounded-xl border border-border/60 p-4 bg-white space-y-2"
         >
           <p className="font-bold text-sm tracking-tight">{p.title}</p>
-          {p.description && (
-            <p className="text-xs text-slate-500 leading-relaxed">
-              {p.description}
-            </p>
-          )}
           <div className="flex flex-wrap gap-1">
             {p.technologies?.map((t) => (
               <SkillTag key={t} label={t} />
@@ -233,18 +230,90 @@ function ProjectSelectionData({ data }) {
   );
 }
 
-function SkillsSelectionData({ data }) {
+// ─── SkillsSelectionData ──────────────────────────────────────────
+// - isEditable: when true (i.e. this is the latest/interrupt step),
+//   chips are toggleable and onChange fires with the updated selection.
+// - onChange: (updatedSelectedSkills: {category, skills}[]) => void
+
+function SkillsSelectionData({
+  data,
+  resumeJson,
+  isEditable = false,
+  onChange,
+}) {
+  const allSkills = resumeJson?.skills || [];
+
+  // Initialise local toggle state from the step's selected_skills
+  const [selectedSet, setSelectedSet] = useState(() => {
+    return new Set(data.selected_skills?.flatMap((cat) => cat.skills) || []);
+  });
+
+  // Keep parent in sync whenever selectedSet changes (editable mode only)
+  useEffect(() => {
+    if (!isEditable || !onChange) return;
+
+    // Rebuild the same category structure, filtered to only selected skills
+    const updated = allSkills
+      .map((cat) => ({
+        category: cat.category,
+        skills: (cat.skills || []).filter((s) => selectedSet.has(s)),
+      }))
+      .filter((cat) => cat.skills.length > 0);
+
+    onChange(updated);
+  }, [selectedSet, isEditable]);
+
+  function toggleSkill(skill) {
+    setSelectedSet((prev) => {
+      const next = new Set(prev);
+      next.has(skill) ? next.delete(skill) : next.add(skill);
+      return next;
+    });
+  }
+
   return (
-    <div className="space-y-3">
-      {data.selected_skills?.map((cat, i) => (
+    <div className="space-y-4">
+      {isEditable && (
+        <p className="text-[10px] font-black uppercase tracking-widest text-primary/60">
+          Click skills to toggle them on or off
+        </p>
+      )}
+      {allSkills.map((cat, i) => (
         <div key={i} className="space-y-1.5">
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
             {cat.category}
           </p>
-          <div className="flex flex-wrap gap-1.5">
-            {cat.skills?.map((s) => (
-              <SkillTag key={s} label={s} />
-            ))}
+          <div className="flex flex-wrap gap-1">
+            {cat.skills?.map((s) => {
+              const isSelected = selectedSet.has(s);
+              return isEditable ? (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => toggleSkill(s)}
+                  className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border transition-all
+                    ${
+                      isSelected
+                        ? "bg-slate-900 text-white border-slate-900 hover:bg-slate-700 hover:border-slate-700"
+                        : "bg-slate-50 text-slate-400 border-slate-100 hover:bg-slate-100 hover:text-slate-500"
+                    }`}
+                >
+                  {s}
+                </button>
+              ) : (
+                <span
+                  key={s}
+                  className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border
+                    ${
+                      isSelected
+                        ? "bg-slate-900 text-white border-slate-900"
+                        : "bg-slate-50 text-slate-400 border-slate-100"
+                    }`}
+                >
+                  {s}
+                </span>
+              );
+            })}
           </div>
         </div>
       ))}
@@ -290,13 +359,26 @@ function ExperienceRewriteData({ data, resumeJson }) {
   );
 }
 
-function NodeDataRenderer({ node, data, resumeJson }) {
+function NodeDataRenderer({
+  node,
+  data,
+  resumeJson,
+  isEditable,
+  onSkillsChange,
+}) {
   if (node === "jd_parsing_node") return <JDData data={data} />;
   if (node === "skill_match_node") return <SkillMatchData data={data} />;
   if (node === "project_selection_node")
     return <ProjectSelectionData data={data} />;
   if (node === "skill_selection_node")
-    return <SkillsSelectionData data={data} />;
+    return (
+      <SkillsSelectionData
+        data={data}
+        resumeJson={resumeJson}
+        isEditable={isEditable}
+        onChange={onSkillsChange}
+      />
+    );
   if (node === "project_rewrite_node")
     return <ProjectRewriteData data={data} resumeJson={resumeJson} />;
   if (node === "experience_rewrite_node")
@@ -306,9 +388,13 @@ function NodeDataRenderer({ node, data, resumeJson }) {
 
 // ─── Step row ─────────────────────────────────────────────────────
 
-function StepRow({ step, isActive, resumeJson, isLast }) {
+function StepRow({ step, isActive, resumeJson, isLast, onSkillsChange }) {
   const [collapsed, setCollapsed] = useState(false);
   const meta = NODE_META[step.node] || { label: step.label };
+
+  // Only the last completed step of skill_selection gets editable chips
+  const isEditableSkillStep =
+    isLast && step.node === "skill_selection_node" && !isActive;
 
   return (
     <motion.div
@@ -347,7 +433,7 @@ function StepRow({ step, isActive, resumeJson, isLast }) {
               </span>
             )}
           </div>
-          {!isActive && step.data && (
+          {!isActive && step.data && !isEditableSkillStep && (
             <button
               onClick={() => setCollapsed((c) => !c)}
               className="text-slate-400 hover:text-slate-600 transition-colors"
@@ -375,6 +461,8 @@ function StepRow({ step, isActive, resumeJson, isLast }) {
                     node={step.node}
                     data={step.data}
                     resumeJson={resumeJson}
+                    isEditable={isEditableSkillStep}
+                    onSkillsChange={onSkillsChange}
                   />
                 </CardContent>
               </Card>
@@ -387,8 +475,10 @@ function StepRow({ step, isActive, resumeJson, isLast }) {
 }
 
 // ─── Interrupt panel ──────────────────────────────────────────────
+// selectionData: optional — when provided (skill_selection interrupt),
+// it is merged into the submission payload as `selected_skills`.
 
-function InterruptPanel({ node, onSubmit, isSubmitting }) {
+function InterruptPanel({ node, onSubmit, isSubmitting, selectionData }) {
   const [feedback, setFeedback] = useState("");
   const label = INTERRUPT_LABELS[node] || "Review this step";
   const panelRef = useRef(null);
@@ -403,6 +493,14 @@ function InterruptPanel({ node, onSubmit, isSubmitting }) {
       100,
     );
   }, []);
+
+  function buildPayload(approved) {
+    const base = { approved, feedback: approved ? "" : feedback };
+    if (selectionData !== undefined) {
+      base.edited_skills = selectionData;
+    }
+    return base;
+  }
 
   return (
     <motion.div
@@ -419,17 +517,11 @@ function InterruptPanel({ node, onSubmit, isSubmitting }) {
             <AlertCircle className="w-4 h-4 text-primary" />
             <p className="font-bold text-sm text-primary">{label}</p>
           </div>
-          <Textarea
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
-            placeholder="Leave blank to approve, or describe what to change..."
-            className="min-h-[80px] text-sm rounded-xl border-border/60 resize-none"
-          />
-          <div className="flex gap-3">
+          {node === "skill_selection_review_node" ? (
             <Button
-              onClick={() => onSubmit({ approved: true, feedback: "" })}
+              onClick={() => onSubmit(buildPayload(true))}
               disabled={isSubmitting}
-              className="flex-1 btn-primary rounded-xl font-bold"
+              className="w-full btn-primary rounded-xl font-bold"
             >
               {isSubmitting ? (
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -438,15 +530,38 @@ function InterruptPanel({ node, onSubmit, isSubmitting }) {
               )}
               Looks good, continue
             </Button>
-            <Button
-              onClick={() => onSubmit({ approved: false, feedback })}
-              disabled={!feedback.trim() || isSubmitting}
-              variant="outline"
-              className="flex-1 rounded-xl font-bold border-border/60"
-            >
-              Request changes
-            </Button>
-          </div>
+          ) : (
+            <>
+              <Textarea
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                placeholder="Leave blank to approve, or describe what to change..."
+                className="min-h-[80px] text-sm rounded-xl border-border/60 resize-none"
+              />
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => onSubmit(buildPayload(true))}
+                  disabled={isSubmitting}
+                  className="flex-1 btn-primary rounded-xl font-bold"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                  )}
+                  Looks good, continue
+                </Button>
+                <Button
+                  onClick={() => onSubmit(buildPayload(false))}
+                  disabled={!feedback.trim() || isSubmitting}
+                  variant="outline"
+                  className="flex-1 rounded-xl font-bold border-border/60"
+                >
+                  Request changes
+                </Button>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </motion.div>
@@ -454,8 +569,16 @@ function InterruptPanel({ node, onSubmit, isSubmitting }) {
 }
 
 // ─── Complete banner ──────────────────────────────────────────────
+function CompleteBanner({ pdfKey, latexContent }) {
+  const [copied, setCopied] = useState(false);
 
-function CompleteBanner({ pdfKey }) {
+  async function handleCopy() {
+    if (!latexContent) return;
+    await navigator.clipboard.writeText(latexContent);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.97 }}
@@ -478,12 +601,28 @@ function CompleteBanner({ pdfKey }) {
               </p>
             </div>
           </div>
-          {pdfKey && (
-            <Button className="rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
-              <FileDown className="w-4 h-4 mr-2" />
-              Download PDF
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {latexContent && (
+              <Button
+                onClick={handleCopy}
+                variant="outline"
+                className="rounded-xl font-bold border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+              >
+                {copied ? (
+                  <Check className="w-4 h-4 mr-2 text-emerald-600" />
+                ) : (
+                  <Copy className="w-4 h-4 mr-2" />
+                )}
+                {copied ? "Copied!" : "Copy LaTeX"}
+              </Button>
+            )}
+            {pdfKey && (
+              <Button className="rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
+                <FileDown className="w-4 h-4 mr-2" />
+                Download PDF
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
     </motion.div>
@@ -501,6 +640,11 @@ export default function ApplicationDetail() {
   const [application, setApplication] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Tracks the current skill selection when interrupted at skill_selection_node.
+  // Initialised from step data; updated as the user toggles chips.
+  const [pendingSkillSelection, setPendingSkillSelection] = useState(null);
+
   const intervalRef = useRef(null);
 
   async function fetchApplication() {
@@ -534,6 +678,24 @@ export default function ApplicationDetail() {
     });
     return () => clearInterval(intervalRef.current);
   }, [id, token]);
+
+  // When the application loads/updates into an interrupted skill_selection state,
+  // seed pendingSkillSelection from the last step's data.
+  useEffect(() => {
+    if (
+      application?.status === "interrupted" &&
+      application?.current_node === "skill_selection_review_node"
+    ) {
+      const skillStep = [...(application.steps || [])]
+        .reverse()
+        .find((s) => s.node === "skill_selection_node");
+      if (skillStep?.data?.selected_skills) {
+        setPendingSkillSelection(skillStep.data.selected_skills);
+      }
+    } else {
+      setPendingSkillSelection(null);
+    }
+  }, [application?.status, application?.current_node]);
 
   async function handleFeedback(feedback) {
     setIsSubmitting(true);
@@ -604,13 +766,16 @@ export default function ApplicationDetail() {
         ? "Failed"
         : "Tailoring...";
 
-  // total items in timeline = completed steps + active node (if running)
   const hasActiveNode = current_node && isTailoring && !isInterrupted;
   const totalItems =
     steps.length +
     (hasActiveNode ? 1 : 0) +
     (isInterrupted || isComplete || isFailed ? 1 : 0);
   let itemIndex = 0;
+
+  // The last completed step index — used to mark which StepRow gets isLast=true
+  // when interrupted (so the skill chips in that step become editable).
+  const lastStepIndex = steps.length - 1;
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4 space-y-8">
@@ -655,13 +820,26 @@ export default function ApplicationDetail() {
       <div>
         {steps.map((step, i) => {
           itemIndex++;
+          const isLastStep = i === lastStepIndex;
+
+          // A step is the "active last" for skill editing only when:
+          // - it's the final step in the list
+          // - the run is currently interrupted
+          // - there's nothing running after it (no active node)
+          const isEditableLast = isLastStep && isInterrupted && !hasActiveNode;
+
           return (
             <StepRow
               key={step.id}
               step={step}
               isActive={false}
               resumeJson={resume_json}
-              isLast={itemIndex === totalItems}
+              isLast={isEditableLast}
+              onSkillsChange={
+                isEditableLast && step.node === "skill_selection_node"
+                  ? setPendingSkillSelection
+                  : undefined
+              }
             />
           );
         })}
@@ -689,12 +867,24 @@ export default function ApplicationDetail() {
               node={current_node}
               onSubmit={handleFeedback}
               isSubmitting={isSubmitting}
+              // Only pass selectionData when interrupted at skill_selection
+              selectionData={
+                current_node === "skill_selection_review_node"
+                  ? pendingSkillSelection
+                  : undefined
+              }
             />
           )}
         </AnimatePresence>
 
         <AnimatePresence>
-          {isComplete && <CompleteBanner key="complete" pdfKey={pdf_key} />}
+          {isComplete && (
+            <CompleteBanner
+              key="complete"
+              pdfKey={pdf_key}
+              latexContent={application.latex}
+            />
+          )}
         </AnimatePresence>
 
         <AnimatePresence>

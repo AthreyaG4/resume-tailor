@@ -98,7 +98,7 @@ async def graph_stream(input, config: dict, application_id=None, db=None):
             tailored_resume_json = final_state.values["tailored_resume_json"]
             skill_match_results = final_state.values["skill_match_results"]
 
-            pdf_bytes = make_pdf(tailored_resume_json)
+            pdf_bytes, latex = make_pdf(tailored_resume_json)
             key = f"resumes/{app.user_id}/{app.id}.pdf"
             upload_to_s3(pdf_bytes, key)
 
@@ -107,6 +107,7 @@ async def graph_stream(input, config: dict, application_id=None, db=None):
             )
             app.tailored_resume_json = tailored_resume_json.model_dump()
             app.pdf_key = key
+            app.latex = latex
 
         db.commit()
 
@@ -157,17 +158,25 @@ async def create_application(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
-    job_id = payload.job_id
     db_resume = db.query(Resume).filter(Resume.user_id == current_user.id).first()
     if not db_resume:
         raise HTTPException(status_code=404, detail="No resume found.")
 
     resume_json = ResumeSchema(**db_resume.resume_json)
-    job_description, company_name, title = fetch_job_description(job_id)
+
+    if payload.job_id:
+        try:
+            job_description, company_name, title = fetch_job_description(payload.job_id)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    else:
+        job_description = payload.job_description
+        company_name = payload.company_name
+        title = payload.title
 
     application = Application(
         user_id=current_user.id,
-        job_id=job_id,
+        job_id=payload.job_id,
         job_description=job_description,
         company_name=company_name,
         title=title,

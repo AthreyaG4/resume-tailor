@@ -164,25 +164,6 @@
         ((*endfor*))
     \vspace{0.1cm}
 
-    \section{Skills}
-        ((*for category in skills*))
-        \textbf{(((category.category))):} (((", ".join(category.skills))))((*if not loop.last*)) \\((*endif*))
-        ((*endfor*))
-    \vspace{0.1cm}
-
-    \section{Experience}
-        ((*for job in experience*))
-        \textbf{(((job.role))) | (((job.company))) | (((job.location)))} \hfill \textbf{(((job.start_date))) -- (((job.end_date)))}
-        ((*if bullets*))
-        \begin{highlights}
-            ((*for bullet in bullets*))
-                \item (((bullet)))
-            ((*endfor*))
-        \end{highlights}
-        ((*endif*))
-        ((*endfor*))
-    \vspace{0.1cm}
-
     \section{Projects}
         ((*for project in projects*))
         ((*if project.link*))
@@ -190,13 +171,27 @@
         ((*else*))
         \textbf{(((project.title))) | (((", ".join(project.technologies))))}
         ((*endif*))
-        
-        ((*if bullets*))
         \begin{highlights}
-            ((*for bullet in bullets*))
+            ((*for bullet in project.bullets*))
                 \item (((bullet)))
             ((*endfor*))
         \end{highlights}
-        ((*endif*))
         ((*endfor*))
+
+    \section{Experience}
+        ((*for job in experience*))
+        \textbf{(((job.role))) | (((job.company))) | (((job.location)))} \hfill \textbf{(((job.start_date))) -- (((job.end_date)))}
+        \begin{highlights}
+            ((*for bullet in job.bullets*))
+                \item (((bullet)))
+            ((*endfor*))
+        \end{highlights}
+        ((*endfor*))
+    \vspace{0.1cm}
+
+    \section{Skills}
+        ((*for category in skills*))
+        \textbf{(((category.category))):} (((", ".join(category.skills))))((*if not loop.last*)) \\((*endif*))
+        ((*endfor*))
+    \vspace{0.1cm}
 \end{document}
