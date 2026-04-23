@@ -4,14 +4,13 @@ from schemas import (
     SemanticMatchResponseSchema,
     ProjectSelectResponseSchema,
     SkillSelectionResponse,
-    ProjectRewriteResponse,
     ExperienceRewriteResponse,
     SkillMatchResultSchema,
     HumanReviewResponse,
     SkillCategory,
 )
 from agent.state import TailorState
-from langgraph.types import interrupt
+from langgraph.types import interrupt, Send
 from typing import Literal
 from agent.prompts import (
     JD_PARSING_SYSTEM_PROMPT,
@@ -21,11 +20,10 @@ from agent.prompts import (
     project_selection_user_prompt,
     SKILL_SELECTION_SYSTEM_PROMPT,
     skill_selection_user_prompt,
-    PROJECT_REWRITE_SYSTEM_PROMPT,
-    project_rewrite_user_prompt,
     EXPERIENCE_REWRITE_SYSTEM_PROMPT,
     experience_rewrite_user_prompt,
 )
+from agent.subagents.project_rewrite.graph import graph as project_rewrite_graph
 import json
 
 
@@ -35,7 +33,6 @@ jd_parsing_model = model.with_structured_output(JDResponseSchema)
 semantic_skill_match_model = model.with_structured_output(SemanticMatchResponseSchema)
 project_selection_model = model.with_structured_output(ProjectSelectResponseSchema)
 skill_selection_model = model.with_structured_output(SkillSelectionResponse)
-project_rewrite_model = model.with_structured_output(ProjectRewriteResponse)
 experience_rewrite_model = model.with_structured_output(ExperienceRewriteResponse)
 
 
@@ -208,61 +205,21 @@ def skill_selection_review_node(state: TailorState):
     return {"selected_skills": [SkillCategory(**s) for s in response.edited_skills]}
 
 
-def project_rewrite_node(state: TailorState):
-    messages = state.project_rewrite_messages or [
-        {"role": "system", "content": PROJECT_REWRITE_SYSTEM_PROMPT},
-        {"role": "user", "content": project_rewrite_user_prompt(state)},
+def continue_to_project_rewrite_node(state: TailorState):
+    return [
+        Send("project_rewrite_node", {"jd_json": state.jd_json, "project": p})
+        for p in state.selected_projects
     ]
 
-    response = project_rewrite_model.invoke(messages)
 
-    if not state.project_rewrite_messages:
-        messages_to_store = messages + [
-            {"role": "assistant", "content": response.model_dump_json()}
-        ]
-    else:
-        messages_to_store = [
-            {"role": "assistant", "content": response.model_dump_json()}
-        ]
-
-    return {
-        "rewritten_projects": response.rewritten_projects,
-        "project_rewrite_messages": messages_to_store,
-    }
-
-
-def project_rewrite_review_node(state: TailorState):
-    human_response = interrupt(
+def execute_project_rewrite_node(state: TailorState):
+    result = project_rewrite_graph.invoke(
         {
-            "rewritten_projects": [p.model_dump() for p in state.rewritten_projects],
-            "message": "Review the rewritten projects. Approve or provide feedback.",
+            "jd_json": state.jd_json,
+            "project": state.project,
         }
     )
-
-    response = HumanReviewResponse(**human_response)
-
-    if response.approved:
-        return {}
-    else:
-        return {
-            "project_rewrite_messages": [
-                {
-                    "role": "user",
-                    "content": f"Human feedback: {response.feedback}. Please revise.",
-                }
-            ]
-        }
-
-
-def should_rewrite_projects(
-    state: TailorState,
-) -> Literal["project_rewrite_node", "experience_rewrite_node"]:
-    if (
-        state.project_rewrite_messages
-        and state.project_rewrite_messages[-1]["role"] == "user"
-    ):
-        return "project_rewrite_node"
-    return "experience_rewrite_node"
+    return {"rewritten_projects": [result.rewritten_project]}
 
 
 def experience_rewrite_node(state: TailorState):

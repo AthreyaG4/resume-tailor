@@ -41,17 +41,16 @@ def make_pdf(tailored_resume) -> bytes:
         with open(tex_path, "w") as f:
             f.write(output)
 
-        result = subprocess.run(
-            [
-                "pdflatex",
-                "-interaction=nonstopmode",
-                "-output-directory",
-                tmpdir,
-                tex_path,
-            ],
-            capture_output=True,
-            text=True,
-        )
+            result = subprocess.run(
+                [
+                    "tectonic",
+                    "--outdir",
+                    tmpdir,
+                    tex_path,
+                ],
+                capture_output=True,
+                text=True,
+            )
 
         if result.returncode != 0:
             print("STDOUT:", result.stdout)
