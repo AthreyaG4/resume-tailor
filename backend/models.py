@@ -71,6 +71,7 @@ class Application(Base):
         Enum(ApplicationStatus), default=ApplicationStatus.TAILORING, nullable=False
     )
     current_node = Column(String, nullable=True)
+    interrupt_payloads = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(
         DateTime,

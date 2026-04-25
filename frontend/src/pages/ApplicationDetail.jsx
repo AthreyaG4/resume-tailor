@@ -34,7 +34,7 @@ const NODE_META = {
   skill_match_node: { label: "Matching your skills" },
   project_selection_node: { label: "Selecting best projects" },
   skill_selection_node: { label: "Tailoring skill list" },
-  project_rewrite_node: { label: "Rewriting project bullets" },
+  execute_project_rewrite_node: { label: "Rewriting project bullets" },
   experience_rewrite_node: {
     label: "Rewriting experience bullets",
   },
@@ -379,7 +379,7 @@ function NodeDataRenderer({
         onChange={onSkillsChange}
       />
     );
-  if (node === "project_rewrite_node")
+  if (node === "execute_project_rewrite_node")
     return <ProjectRewriteData data={data} resumeJson={resumeJson} />;
   if (node === "experience_rewrite_node")
     return <ExperienceRewriteData data={data} resumeJson={resumeJson} />;
@@ -477,11 +477,20 @@ function StepRow({ step, isActive, resumeJson, isLast, onSkillsChange }) {
 // ─── Interrupt panel ──────────────────────────────────────────────
 // selectionData: optional — when provided (skill_selection interrupt),
 // it is merged into the submission payload as `selected_skills`.
+// interruptPayloads: [{id, value}] from application.interrupt_payloads
 
-function InterruptPanel({ node, onSubmit, isSubmitting, selectionData }) {
-  const [feedback, setFeedback] = useState("");
+function InterruptPanel({ node, interruptPayloads = [], onSubmit, isSubmitting, selectionData }) {
+  const isSingle = interruptPayloads.length <= 1;
   const label = INTERRUPT_LABELS[node] || "Review this step";
   const panelRef = useRef(null);
+
+  const [feedback, setFeedback] = useState("");
+
+  const [multiState, setMultiState] = useState(() =>
+    Object.fromEntries(
+      interruptPayloads.map((p) => [p.id, { approved: null, feedback: "" }]),
+    ),
+  );
 
   useEffect(() => {
     setTimeout(
@@ -494,13 +503,34 @@ function InterruptPanel({ node, onSubmit, isSubmitting, selectionData }) {
     );
   }, []);
 
-  function buildPayload(approved) {
-    const base = { approved, feedback: approved ? "" : feedback };
+  function handleSingleSubmit(approved) {
+    const response = {
+      interrupt_id: interruptPayloads[0]?.id,
+      approved,
+      feedback: approved ? "" : feedback,
+    };
     if (selectionData !== undefined) {
-      base.edited_skills = selectionData;
+      response.edited_skills = selectionData;
     }
-    return base;
+    onSubmit({ responses: [response] });
   }
+
+  function setMulti(id, patch) {
+    setMultiState((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+  }
+
+  function handleMultiSubmit() {
+    const responses = interruptPayloads.map((p) => ({
+      interrupt_id: p.id,
+      approved: multiState[p.id]?.approved ?? true,
+      feedback: multiState[p.id]?.feedback || "",
+    }));
+    onSubmit({ responses });
+  }
+
+  const allDecided = interruptPayloads.every(
+    (p) => multiState[p.id]?.approved !== null,
+  );
 
   return (
     <motion.div
@@ -511,59 +541,139 @@ function InterruptPanel({ node, onSubmit, isSubmitting, selectionData }) {
       transition={{ duration: 0.35 }}
       className="pl-[52px]"
     >
-      <Card className="border-primary/20 bg-primary/5 rounded-2xl shadow-sm">
-        <CardContent className="p-5 space-y-4">
-          <div className="flex items-center gap-2">
+      {isSingle ? (
+        <Card className="border-primary/20 bg-primary/5 rounded-2xl shadow-sm">
+          <CardContent className="p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-primary" />
+              <p className="font-bold text-sm text-primary">{label}</p>
+            </div>
+            {node === "skill_selection_review_node" ? (
+              <Button
+                onClick={() => handleSingleSubmit(true)}
+                disabled={isSubmitting}
+                className="w-full btn-primary rounded-xl font-bold"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                )}
+                Looks good, continue
+              </Button>
+            ) : (
+              <>
+                <Textarea
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  placeholder="Leave blank to approve, or describe what to change..."
+                  className="min-h-[80px] text-sm rounded-xl border-border/60 resize-none"
+                />
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => handleSingleSubmit(true)}
+                    disabled={isSubmitting}
+                    className="flex-1 btn-primary rounded-xl font-bold"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                    )}
+                    Looks good, continue
+                  </Button>
+                  <Button
+                    onClick={() => handleSingleSubmit(false)}
+                    disabled={!feedback.trim() || isSubmitting}
+                    variant="outline"
+                    className="flex-1 rounded-xl font-bold border-border/60"
+                  >
+                    Request changes
+                  </Button>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 pl-1">
             <AlertCircle className="w-4 h-4 text-primary" />
             <p className="font-bold text-sm text-primary">{label}</p>
           </div>
-          {node === "skill_selection_review_node" ? (
-            <Button
-              onClick={() => onSubmit(buildPayload(true))}
-              disabled={isSubmitting}
-              className="w-full btn-primary rounded-xl font-bold"
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-4 h-4 animate-spin mr-2" />
-              ) : (
-                <CheckCircle2 className="w-4 h-4 mr-2" />
-              )}
-              Looks good, continue
-            </Button>
-          ) : (
-            <>
-              <Textarea
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                placeholder="Leave blank to approve, or describe what to change..."
-                className="min-h-[80px] text-sm rounded-xl border-border/60 resize-none"
-              />
-              <div className="flex gap-3">
-                <Button
-                  onClick={() => onSubmit(buildPayload(true))}
-                  disabled={isSubmitting}
-                  className="flex-1 btn-primary rounded-xl font-bold"
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <CheckCircle2 className="w-4 h-4 mr-2" />
+          {interruptPayloads.map((interrupt) => {
+            const project = interrupt.value?.rewritten_project;
+            const s = multiState[interrupt.id] || { approved: null, feedback: "" };
+            return (
+              <Card
+                key={interrupt.id}
+                className="border-primary/20 bg-primary/5 rounded-2xl shadow-sm"
+              >
+                <CardContent className="p-5 space-y-4">
+                  {project && (
+                    <div className="space-y-2">
+                      <p className="font-bold text-sm tracking-tight">
+                        {project.title}
+                      </p>
+                      <ul className="space-y-1.5">
+                        {project.bullets?.map((b, i) => (
+                          <li
+                            key={i}
+                            className="text-xs text-slate-700 bg-emerald-50 rounded-lg px-3 py-2 leading-relaxed border border-emerald-100"
+                          >
+                            {b}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
-                  Looks good, continue
-                </Button>
-                <Button
-                  onClick={() => onSubmit(buildPayload(false))}
-                  disabled={!feedback.trim() || isSubmitting}
-                  variant="outline"
-                  className="flex-1 rounded-xl font-bold border-border/60"
-                >
-                  Request changes
-                </Button>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+                  {s.approved === false && (
+                    <Textarea
+                      value={s.feedback}
+                      onChange={(e) =>
+                        setMulti(interrupt.id, { feedback: e.target.value })
+                      }
+                      placeholder="What should be changed?"
+                      className="min-h-[60px] text-sm rounded-xl border-border/60 resize-none"
+                    />
+                  )}
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={() =>
+                        setMulti(interrupt.id, { approved: true, feedback: "" })
+                      }
+                      variant={s.approved === true ? "default" : "outline"}
+                      className="flex-1 rounded-xl font-bold"
+                    >
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                      Approve
+                    </Button>
+                    <Button
+                      onClick={() => setMulti(interrupt.id, { approved: false })}
+                      variant={s.approved === false ? "default" : "outline"}
+                      className="flex-1 rounded-xl font-bold border-border/60"
+                    >
+                      Request changes
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+          <Button
+            onClick={handleMultiSubmit}
+            disabled={!allDecided || isSubmitting}
+            className="w-full btn-primary rounded-xl font-bold"
+          >
+            {isSubmitting ? (
+              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 mr-2" />
+            )}
+            Submit all reviews
+          </Button>
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -865,6 +975,7 @@ export default function ApplicationDetail() {
             <InterruptPanel
               key="interrupt"
               node={current_node}
+              interruptPayloads={application.interrupt_payloads || []}
               onSubmit={handleFeedback}
               isSubmitting={isSubmitting}
               // Only pass selectionData when interrupted at skill_selection

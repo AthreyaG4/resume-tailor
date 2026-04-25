@@ -207,7 +207,7 @@ def skill_selection_review_node(state: TailorState):
 
 def continue_to_project_rewrite_node(state: TailorState):
     return [
-        Send("project_rewrite_node", {"jd_json": state.jd_json, "project": p})
+        Send("execute_project_rewrite_node", {"jd_json": state.jd_json, "project": p})
         for p in state.selected_projects
     ]
 
@@ -215,8 +215,8 @@ def continue_to_project_rewrite_node(state: TailorState):
 def execute_project_rewrite_node(state: TailorState):
     result = project_rewrite_graph.invoke(
         {
-            "jd_json": state.jd_json,
-            "project": state.project,
+            "jd_json": state["jd_json"].model_dump(),
+            "project": state["project"].model_dump(),
         }
     )
     return {"rewritten_projects": [result.rewritten_project]}
@@ -249,7 +249,7 @@ def experience_rewrite_review_node(state: TailorState):
     human_response = interrupt(
         {
             "rewritten_experience": [
-                p.model_dump() for p in state.rewritten_experience
+                p.model_dump() for p in state["rewritten_experience"]
             ],
             "message": "Review the rewritten experience. Approve or provide feedback.",
         }

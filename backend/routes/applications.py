@@ -7,7 +7,7 @@ from utils.fetch import fetch_job_description
 from agent.graph import tailor_agent
 from langchain_core.runnables import RunnableConfig
 from schemas import (
-    HumanReviewResponse,
+    ContinueRequest,
     ResumeSchema,
     ApplicationResponse,
     ApplicationsResponse,
@@ -29,7 +29,7 @@ NODE_LABELS = {
     "skill_match_node": "Matching skills",
     "project_selection_node": "Selecting projects",
     "skill_selection_node": "Selecting skills",
-    "project_rewrite_node": "Rewriting project bullets",
+    "execute_project_rewrite_node": "Rewriting project bullets",
     "experience_rewrite_node": "Rewriting experience bullets",
     "assemble_resume_node": "Assembling resume",
 }
@@ -39,7 +39,7 @@ STRUCTURED_OUTPUT_NODES = {
     "skill_match_node",
     "project_selection_node",
     "skill_selection_node",
-    "project_rewrite_node",
+    "execute_project_rewrite_node",
     "experience_rewrite_node",
 }
 
@@ -94,6 +94,10 @@ async def graph_stream(input, config: dict, application_id=None, db=None):
         if final_state.next:
             app.current_node = final_state.next[0]
             app.status = ApplicationStatus.INTERRUPTED
+            app.interrupt_payloads = [
+                {"id": i.id, "value": serialize_output(i.value)}
+                for i in final_state.interrupts
+            ]
         else:
             app.current_node = None
             app.status = ApplicationStatus.TAILORED
@@ -202,7 +206,7 @@ async def create_application(
 
 @route.post("/{application_id}/continue")
 async def continue_application(
-    feedback: HumanReviewResponse,
+    feedback: ContinueRequest,
     background_tasks: BackgroundTasks,
     application_id: UUID,
     current_user: User = Depends(get_current_active_user),
@@ -216,11 +220,17 @@ async def continue_application(
 
     application.status = ApplicationStatus.TAILORING
     application.current_node = None
+    application.interrupt_payloads = None
     db.commit()
+
+    resume_map = {
+        r.interrupt_id: r.model_dump(exclude={"interrupt_id"})
+        for r in feedback.responses
+    }
 
     background_tasks.add_task(
         graph_stream,
-        Command(resume=feedback.model_dump()),
+        Command(resume=resume_map),
         config,
         application_id=application.id,
         db=next(get_db()),

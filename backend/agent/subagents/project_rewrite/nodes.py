@@ -31,7 +31,7 @@ def project_rewrite_node(state: ProjectSubgraphState):
         ]
 
     return {
-        "rewritten_project": response.rewritten_projects,
+        "rewritten_project": response.rewritten_project,
         "project_rewrite_messages": messages_to_store,
     }
 
@@ -39,8 +39,8 @@ def project_rewrite_node(state: ProjectSubgraphState):
 def project_rewrite_review_node(state: ProjectSubgraphState):
     human_response = interrupt(
         {
-            "rewritten_projects": [p.model_dump() for p in state.rewritten_project],
-            "message": "Review the rewritten projects. Approve or provide feedback.",
+            "rewritten_project": state.rewritten_project,
+            "message": "Review the rewritten project. Approve or provide feedback.",
         }
     )
 

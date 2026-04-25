@@ -76,6 +76,7 @@ class ApplicationResponse(BaseModel):
     latex: Optional[str] = None
     status: ApplicationStatus
     current_node: Optional[str] = None
+    interrupt_payloads: Optional[list] = None
     steps: list["ApplicationStepResponse"] = []
     created_at: datetime
     updated_at: datetime
@@ -183,7 +184,7 @@ class SkillSelectionResponse(BaseModel):
 
 
 class ProjectRewriteResponse(BaseModel):
-    rewritten_projects: list[Project]
+    rewritten_project: Project
 
 
 class ExperienceRewriteResponse(BaseModel):
@@ -191,6 +192,11 @@ class ExperienceRewriteResponse(BaseModel):
 
 
 class HumanReviewResponse(BaseModel):
+    interrupt_id: Optional[str] = None
     approved: bool
     feedback: Optional[str] = None
     edited_skills: Optional[list[dict]] = None
+
+
+class ContinueRequest(BaseModel):
+    responses: list[HumanReviewResponse]
