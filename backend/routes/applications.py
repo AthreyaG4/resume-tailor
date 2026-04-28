@@ -50,7 +50,7 @@ async def graph_stream(input, config: dict, application_id=None, db=None):
         name = event["name"]
         node = event.get("metadata", {}).get("langgraph_node", "")
 
-        print(node)
+        # print(node)
 
         if event_name == "on_chain_start" and name == node and node in NODE_LABELS:
             if db and application_id:
@@ -86,7 +86,7 @@ async def graph_stream(input, config: dict, application_id=None, db=None):
                 db.commit()
 
     final_state = tailor_agent.get_state(config)
-    print("Final state:", final_state)
+    # print("Final state:", final_state)
 
     if db and application_id:
         app = db.query(Application).filter(Application.id == application_id).first()
@@ -221,6 +221,23 @@ async def continue_application(
     application.status = ApplicationStatus.TAILORING
     application.current_node = None
     application.interrupt_payloads = None
+
+    for r in feedback.responses:
+        if r.edited_skills is not None:
+            skill_step = (
+                db.query(ApplicationStep)
+                .filter(
+                    ApplicationStep.application_id == application_id,
+                    ApplicationStep.node == "skill_selection_node",
+                )
+                .first()
+            )
+            if skill_step:
+                skill_step.data = {
+                    **skill_step.data,
+                    "selected_skills": r.edited_skills,
+                }
+
     db.commit()
 
     resume_map = {

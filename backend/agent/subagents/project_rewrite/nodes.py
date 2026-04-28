@@ -14,12 +14,24 @@ project_rewrite_model = model.with_structured_output(ProjectRewriteResponse)
 
 
 def project_rewrite_node(state: ProjectSubgraphState):
+    project_title = state.project.get("title", "?") if isinstance(state.project, dict) else "?"
+    iteration = len([m for m in state.project_rewrite_messages if m.get("role") == "user"]) + 1
+
+    print("\n--- project_rewrite_node ---")
+    print(f"    project   : '{project_title}'")
+    print(f"    iteration : {iteration}")
+    print(f"    messages  : {len(state.project_rewrite_messages)} in history")
+
     messages = state.project_rewrite_messages or [
         {"role": "system", "content": PROJECT_REWRITE_SYSTEM_PROMPT},
         {"role": "user", "content": project_rewrite_user_prompt(state)},
     ]
 
     response = project_rewrite_model.invoke(messages)
+
+    print(f"    produced  : {len(response.rewritten_project.bullets)} bullets")
+    for b in response.rewritten_project.bullets:
+        print(f"      • {b[:80]}{'...' if len(b) > 80 else ''}")
 
     if not state.project_rewrite_messages:
         messages_to_store = messages + [
@@ -37,6 +49,12 @@ def project_rewrite_node(state: ProjectSubgraphState):
 
 
 def project_rewrite_review_node(state: ProjectSubgraphState):
+    project_title = state.rewritten_project.title if state.rewritten_project else "?"
+
+    print("\n--- project_rewrite_review_node ---")
+    print(f"    project   : '{project_title}'")
+    print("    waiting for human review...")
+
     human_response = interrupt(
         {
             "rewritten_project": state.rewritten_project,
@@ -44,11 +62,20 @@ def project_rewrite_review_node(state: ProjectSubgraphState):
         }
     )
 
+    print("    interrupt resolved!")
+    print(f"    raw response : {human_response}")
+
     response = HumanReviewResponse(**human_response)
 
+    print(f"    approved  : {response.approved}")
+    if not response.approved:
+        print(f"    feedback  : '{response.feedback}'")
+
     if response.approved:
+        print("    -> approved, routing to END")
         return {}
     else:
+        print("    -> rejected, looping back to rewrite")
         return {
             "project_rewrite_messages": [
                 {
@@ -62,10 +89,10 @@ def project_rewrite_review_node(state: ProjectSubgraphState):
 def should_rewrite_project(
     state: ProjectSubgraphState,
 ) -> Literal["project_rewrite_node", "__end__"]:
-    if (
-        state.project_rewrite_messages
-        and state.project_rewrite_messages[-1]["role"] == "user"
-    ):
+    last = state.project_rewrite_messages[-1] if state.project_rewrite_messages else None
+    if last and last.get("role") == "user":
+        print("\n-> routing back to project_rewrite_node")
         return "project_rewrite_node"
 
+    print("\n-> routing to END")
     return END

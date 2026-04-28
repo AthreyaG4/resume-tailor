@@ -213,13 +213,38 @@ def continue_to_project_rewrite_node(state: TailorState):
 
 
 def execute_project_rewrite_node(state: TailorState):
+    from schemas import Project
+
+    project_in = state["project"]
+    title = project_in.title if hasattr(project_in, "title") else project_in.get("title", "?")
+
+    print(f"\n{'=' * 50}")
+    print(f"  execute_project_rewrite_node : '{title}'")
+    print(f"{'=' * 50}")
+
     result = project_rewrite_graph.invoke(
         {
             "jd_json": state["jd_json"].model_dump(),
-            "project": state["project"].model_dump(),
+            "project": project_in.model_dump() if hasattr(project_in, "model_dump") else project_in,
         }
     )
-    return {"rewritten_projects": [result.rewritten_project]}
+
+    raw = result["rewritten_project"]
+    project_out = Project(**raw) if isinstance(raw, dict) else raw
+
+    messages = result.get("project_rewrite_messages", [])
+    print(f"\n  ✅ subgraph done — '{project_out.title}'")
+    print(f"     rewritten bullets : {len(project_out.bullets)}")
+    for b in project_out.bullets:
+        print(f"       • {b[:80]}{'...' if len(b) > 80 else ''}")
+    print(f"     total messages    : {len(messages)}")
+    for msg in messages:
+        role = msg.get("role", "?")
+        content = str(msg.get("content", ""))
+        preview = content[:60] + "..." if len(content) > 60 else content
+        print(f"       [{role}] {preview}")
+
+    return {"rewritten_projects": [project_out]}
 
 
 def experience_rewrite_node(state: TailorState):

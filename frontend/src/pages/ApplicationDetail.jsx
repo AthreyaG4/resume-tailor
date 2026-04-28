@@ -1,8 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Card, CardContent } from "../components/ui/card";
-import { Button } from "../components/ui/button";
-import { Textarea } from "../components/ui/textarea";
 import {
   CheckCircle2,
   Loader2,
@@ -11,9 +8,13 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   FileDown,
   Copy,
   Check,
+  X,
+  FileText,
 } from "lucide-react";
 import { useParams } from "react-router";
 import { useAuth } from "../hooks/useAuth";
@@ -30,23 +31,24 @@ import {
 // ─── Constants ────────────────────────────────────────────────────
 
 const NODE_META = {
-  jd_parsing_node: { label: "Parsing job description" },
-  skill_match_node: { label: "Matching your skills" },
-  project_selection_node: { label: "Selecting best projects" },
-  skill_selection_node: { label: "Tailoring skill list" },
-  execute_project_rewrite_node: { label: "Rewriting project bullets" },
-  experience_rewrite_node: {
-    label: "Rewriting experience bullets",
-  },
+  jd_parsing_node: { label: "Job description" },
+  skill_match_node: { label: "Skill match" },
+  project_selection_node: { label: "Project selection" },
+  skill_selection_node: { label: "Skill selection" },
+  execute_project_rewrite_node: { label: "Project rewrites" },
+  experience_rewrite_node: { label: "Experience rewrites" },
   assemble_resume_node: { label: "Assembling resume" },
 };
 
-const INTERRUPT_LABELS = {
-  project_selection_review_node: "Review selected projects",
-  skill_selection_review_node: "Review skill selection",
-  project_rewrite_review_node: "Review rewritten projects",
-  experience_rewrite_review_node: "Review rewritten experience",
-};
+const SIDEBAR_ITEMS = [
+  { node: "jd_parsing_node", label: "Job description" },
+  { node: "skill_match_node", label: "Skill match" },
+  { node: "project_selection_node", label: "Project selection" },
+  { node: "skill_selection_node", label: "Skill selection" },
+  { node: "execute_project_rewrite_node", label: "Project rewrites" },
+  { node: "__review__", label: "Your review" },
+  { node: "__complete__", label: "Resume ready" },
+];
 
 const TERMINAL_STATUSES = [
   "tailored",
@@ -57,20 +59,145 @@ const TERMINAL_STATUSES = [
   "rejected",
 ];
 
-// ─── Skill tag ────────────────────────────────────────────────────
+const POST_TAILOR_STATUSES = ["tailored", "applied", "interviewing", "rejected"];
 
-function SkillTag({ label, variant = "neutral" }) {
-  const colors = {
-    matched: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    missing: "bg-red-50 text-red-600 border-red-200",
-    neutral: "bg-slate-50 text-slate-600 border-slate-200",
-  };
+// ─── Helpers ──────────────────────────────────────────────────────
+
+function scoreColor(pct) {
+  if (pct >= 70) return { text: "#15803d", bg: "#f0fdf4", border: "#bbf7d0", track: "#dcfce7", fill: "#10b981" };
+  if (pct >= 40) return { text: "#b45309", bg: "#fffbeb", border: "#fde68a", track: "#fef9c3", fill: "#f59e0b" };
+  return { text: "#be123c", bg: "#fff1f2", border: "#fecdd3", track: "#fff1f2", fill: "#f43f5e" };
+}
+
+// ─── Sidebar ──────────────────────────────────────────────────────
+
+function Sidebar({ steps, status, currentNode }) {
+  const completedNodes = new Set(steps.map((s) => s.node));
+  const isInterrupted = status === "interrupted";
+  const isComplete = POST_TAILOR_STATUSES.includes(status);
+
+  function getState(node) {
+    if (node === "__review__") {
+      if (isInterrupted) return "active";
+      if (isComplete) return "done";
+      return "pending";
+    }
+    if (node === "__complete__") {
+      return isComplete ? "done" : "pending";
+    }
+    if (completedNodes.has(node)) return "done";
+    if (node === currentNode) return "active";
+    return "pending";
+  }
+
+  function scrollTo(node) {
+    const el = document.getElementById(`step-${node}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   return (
-    <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${colors[variant]}`}
+    <aside
+      style={{ position: "sticky", top: 88 }}
+      className="hidden lg:block self-start"
     >
-      {label}
-    </span>
+      <p
+        style={{
+          fontSize: 10,
+          fontWeight: 800,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          color: "#94a3b8",
+          marginBottom: 14,
+        }}
+      >
+        Progress
+      </p>
+      <div style={{ position: "relative" }}>
+        {SIDEBAR_ITEMS.map((item, i) => {
+          const state = getState(item.node);
+          const isLast = i === SIDEBAR_ITEMS.length - 1;
+          const nextState = !isLast ? getState(SIDEBAR_ITEMS[i + 1].node) : null;
+          const spineGreen = state === "done" && nextState !== null;
+
+          return (
+            <div key={item.node} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+              {/* Spine column */}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 16 }}>
+                {/* Dot */}
+                {state === "done" && (
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981", flexShrink: 0, marginTop: 3 }} />
+                )}
+                {state === "active" && (
+                  <div
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      background: "hsl(220 20% 20%)",
+                      flexShrink: 0,
+                      marginTop: 2,
+                      boxShadow: "0 0 0 4px hsl(220 20% 20% / .12)",
+                      transition: "box-shadow .25s",
+                    }}
+                  />
+                )}
+                {state === "pending" && (
+                  <div
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: "transparent",
+                      border: "1.5px solid #cbd5e1",
+                      flexShrink: 0,
+                      marginTop: 3,
+                    }}
+                  />
+                )}
+                {/* Connector */}
+                {!isLast && (
+                  <div
+                    style={{
+                      width: 1.5,
+                      flexGrow: 1,
+                      minHeight: 24,
+                      background: spineGreen ? "#a7f3d0" : "#e2e8f0",
+                      marginTop: 3,
+                      marginBottom: 3,
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Label */}
+              <button
+                onClick={() => scrollTo(item.node)}
+                style={{
+                  paddingTop: 1,
+                  paddingBottom: isLast ? 0 : 20,
+                  fontSize: 13,
+                  fontWeight: state === "active" ? 700 : 500,
+                  color:
+                    state === "active"
+                      ? "#0f172a"
+                      : state === "done"
+                      ? "#475569"
+                      : "#94a3b8",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  padding: `1px 0 ${isLast ? 0 : 20}px`,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {item.label}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </aside>
   );
 }
 
@@ -78,131 +205,176 @@ function SkillTag({ label, variant = "neutral" }) {
 
 function ScoreBar({ label, value }) {
   const pct = Math.round(value * 100);
-  const color =
-    pct >= 70 ? "bg-emerald-500" : pct >= 40 ? "bg-amber-400" : "bg-red-400";
+  const c = scoreColor(pct);
   return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-xs font-semibold text-slate-500">
-        <span>{label}</span>
-        <span>{pct}%</span>
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>{label}</span>
+        <span style={{ fontSize: 13, fontWeight: 800, color: c.fill, letterSpacing: "-0.01em" }}>{pct}%</span>
       </div>
-      <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+      <div style={{ height: 7, borderRadius: 99, background: c.track, overflow: "hidden" }}>
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className={`h-full rounded-full ${color}`}
+          transition={{ duration: 0.9, ease: [0.4, 0, 0.2, 1] }}
+          style={{ height: "100%", borderRadius: 99, background: c.fill }}
         />
       </div>
     </div>
   );
 }
 
-// ─── Bullet diff ──────────────────────────────────────────────────
+// ─── Skill tag ────────────────────────────────────────────────────
 
-function BulletDiff({ original = [], rewritten = [] }) {
+function SkillTag({ label, variant = "neutral" }) {
+  const styles = {
+    neutral: { bg: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0" },
+    ghost: { bg: "#f1f5f9", color: "#94a3b8", border: "1px solid #e2e8f0" },
+    matched: { bg: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0" },
+    missing: { bg: "#fff1f2", color: "#be123c", border: "1px solid #fecdd3" },
+    dark: { bg: "hsl(220 20% 18%)", color: "#f8fafc", border: "1px solid hsl(220 20% 18%)" },
+  };
+  const s = styles[variant] || styles.neutral;
   return (
-    <div className="grid grid-cols-2 gap-4">
-      <div className="space-y-2">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-          Original
-        </p>
-        <ul className="space-y-1.5">
-          {original.map((b, i) => (
-            <li
-              key={i}
-              className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2 leading-relaxed border border-slate-100"
-            >
-              {b}
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="space-y-2">
-        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500">
-          Rewritten
-        </p>
-        <ul className="space-y-1.5">
-          {rewritten.map((b, i) => (
-            <li
-              key={i}
-              className="text-xs text-slate-700 bg-emerald-50 rounded-lg px-3 py-2 leading-relaxed border border-emerald-100"
-            >
-              {b}
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "3px 10px",
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 600,
+        lineHeight: "18px",
+        whiteSpace: "nowrap",
+        background: s.bg,
+        color: s.color,
+        border: s.border,
+      }}
+    >
+      {label}
+    </span>
   );
 }
 
-// ─── Node data renderers ──────────────────────────────────────────
+// ─── JD Content ───────────────────────────────────────────────────
 
-function JDData({ data }) {
+function JDContent({ data }) {
   const jd = data.jd_json;
   if (!jd) return null;
+  const mustHave = jd.must_have_qualifications || [];
+  const niceToHave = jd.nice_to_have_qualifications || [];
   return (
-    <div className="space-y-4">
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       {jd.location && (
-        <div className="flex items-center gap-2 text-sm text-slate-600">
-          <MapPin className="w-4 h-4 text-slate-400" />
-          {jd.location}
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            borderRadius: 99,
+            padding: "5px 12px",
+            alignSelf: "flex-start",
+          }}
+        >
+          <MapPin style={{ width: 13, height: 13, color: "#94a3b8", flexShrink: 0 }} />
+          <span style={{ fontSize: 12, fontWeight: 500, color: "#475569" }}>{jd.location}</span>
         </div>
       )}
-      <div className="space-y-2">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-          Must-have
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          {jd.must_have_qualifications?.map((s) => (
-            <SkillTag key={s} label={s} />
-          ))}
+
+      <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "#94a3b8" }}>
+            Must-have
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#94a3b8" }}>{mustHave.length} skills</span>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+          {mustHave.map((s) => <SkillTag key={s} label={s} variant="neutral" />)}
         </div>
       </div>
-      <div className="space-y-2">
-        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-          Nice to have
-        </p>
-        <div className="flex flex-wrap gap-1.5">
-          {jd.nice_to_have_qualifications?.map((s) => (
-            <SkillTag key={s} label={s} />
-          ))}
+
+      <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "#94a3b8" }}>
+            Nice to have
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#94a3b8" }}>{niceToHave.length} skills</span>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+          {niceToHave.map((s) => <SkillTag key={s} label={s} variant="ghost" />)}
         </div>
       </div>
     </div>
   );
 }
 
-function SkillMatchData({ data }) {
+// ─── Skill Match Content ──────────────────────────────────────────
+
+function SkillMatchContent({ data }) {
   const r = data.skill_match_results;
   if (!r) return null;
+  const overallPct = Math.round((r.final_score || 0) * 100);
+  const c = scoreColor(overallPct);
+  const matched = r.matched_must_have || [];
+  const missing = r.missing_must_have || [];
+  const total = matched.length + missing.length;
+
   return (
-    <div className="space-y-4">
-      <div className="space-y-3">
-        <ScoreBar label="Must-have match" value={r.must_have_score} />
-        <ScoreBar label="Nice-to-have match" value={r.nice_to_have_score} />
-        <ScoreBar label="Overall score" value={r.final_score} />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500">
-            Matched
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {r.matched_must_have?.map((s) => (
-              <SkillTag key={s} label={s} variant="matched" />
-            ))}
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* Summary card */}
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div
+          style={{
+            background: c.bg,
+            border: `1px solid ${c.border}`,
+            borderRadius: 14,
+            padding: "10px 16px",
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ fontFamily: "'Playfair Display', serif", fontWeight: 900, fontSize: 28, color: c.text, lineHeight: 1 }}>
+            {overallPct}%
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: c.text, opacity: 0.7 }}>overall match</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 12, color: "#475569", lineHeight: 1.5 }}>
+            <span style={{ fontWeight: 700, color: "#0f172a" }}>{matched.length}</span> of{" "}
+            <span style={{ fontWeight: 700, color: "#0f172a" }}>{total}</span> must-have skills matched
+          </div>
+          <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 3 }}>
+            {missing.length} skills missing from your resume
           </div>
         </div>
-        <div className="space-y-2">
-          <p className="text-[10px] font-black uppercase tracking-widest text-red-400">
-            Missing
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {r.missing_must_have?.map((s) => (
-              <SkillTag key={s} label={s} variant="missing" />
-            ))}
+      </div>
+
+      {/* Score bars */}
+      <div style={{ background: "#f8fafc", border: "1px solid #f1f5f9", borderRadius: 14, padding: "14px 16px" }}>
+        <ScoreBar label="Must-have match" value={r.must_have_score || 0} />
+        <ScoreBar label="Nice-to-have match" value={r.nice_to_have_score || 0} />
+        <ScoreBar label="Overall score" value={r.final_score || 0} />
+      </div>
+
+      {/* Matched / Missing grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 14, padding: "12px 14px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "#15803d" }}>Matched</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#15803d", background: "#dcfce7", padding: "1px 7px", borderRadius: 99 }}>{matched.length}</span>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+            {matched.map((s) => <SkillTag key={s} label={s} variant="matched" />)}
+          </div>
+        </div>
+        <div style={{ background: "#fff1f2", border: "1px solid #fecdd3", borderRadius: 14, padding: "12px 14px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "#be123c" }}>Missing</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#be123c", background: "#ffe4e6", padding: "1px 7px", borderRadius: 99 }}>{missing.length}</span>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+            {missing.map((s) => <SkillTag key={s} label={s} variant="missing" />)}
           </div>
         </div>
       </div>
@@ -210,19 +382,52 @@ function SkillMatchData({ data }) {
   );
 }
 
-function ProjectSelectionData({ data }) {
+// ─── Project Selection Content ────────────────────────────────────
+
+function ProjectSelectionContent({ data }) {
+  const projects = data.selected_projects || [];
   return (
-    <div className="space-y-3">
-      {data.selected_projects?.map((p, i) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <p style={{ fontSize: 12, fontWeight: 500, color: "#64748b", marginBottom: 4 }}>
+        {projects.length} projects selected for tailoring
+      </p>
+      {projects.map((p, i) => (
         <div
           key={i}
-          className="rounded-xl border border-border/60 p-4 bg-white space-y-2"
+          style={{
+            background: "#f8fafc",
+            border: "1px solid hsl(220 10% 91%)",
+            borderRadius: 14,
+            padding: "13px 16px",
+            display: "flex",
+            gap: 12,
+            alignItems: "flex-start",
+          }}
         >
-          <p className="font-bold text-sm tracking-tight">{p.title}</p>
-          <div className="flex flex-wrap gap-1">
-            {p.technologies?.map((t) => (
-              <SkillTag key={t} label={t} />
-            ))}
+          <div
+            style={{
+              width: 28,
+              height: 28,
+              background: "hsl(220 20% 18%)",
+              color: "#fff",
+              borderRadius: 8,
+              fontSize: 11,
+              fontWeight: 800,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            {i + 1}
+          </div>
+          <div>
+            <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, fontWeight: 700, color: "#0f172a", marginBottom: 6 }}>
+              {p.title}
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {(p.technologies || []).map((t) => <SkillTag key={t} label={t} variant="neutral" />)}
+            </div>
           </div>
         </div>
       ))}
@@ -230,89 +435,82 @@ function ProjectSelectionData({ data }) {
   );
 }
 
-// ─── SkillsSelectionData ──────────────────────────────────────────
-// - isEditable: when true (i.e. this is the latest/interrupt step),
-//   chips are toggleable and onChange fires with the updated selection.
-// - onChange: (updatedSelectedSkills: {category, skills}[]) => void
+// ─── Skill Selection Content ──────────────────────────────────────
 
-function SkillsSelectionData({
-  data,
-  resumeJson,
-  isEditable = false,
-  onChange,
-}) {
+function SkillSelectionContent({ data, resumeJson, isEditable, onChange }) {
   const allSkills = resumeJson?.skills || [];
+  const [selectedSet, setSelectedSet] = useState(() =>
+    new Set(data.selected_skills?.flatMap((cat) => cat.skills) || [])
+  );
 
-  // Initialise local toggle state from the step's selected_skills
-  const [selectedSet, setSelectedSet] = useState(() => {
-    return new Set(data.selected_skills?.flatMap((cat) => cat.skills) || []);
-  });
-
-  // Keep parent in sync whenever selectedSet changes (editable mode only)
   useEffect(() => {
     if (!isEditable || !onChange) return;
-
-    // Rebuild the same category structure, filtered to only selected skills
     const updated = allSkills
       .map((cat) => ({
         category: cat.category,
         skills: (cat.skills || []).filter((s) => selectedSet.has(s)),
       }))
       .filter((cat) => cat.skills.length > 0);
-
     onChange(updated);
   }, [selectedSet, isEditable]);
 
-  function toggleSkill(skill) {
-    setSelectedSet((prev) => {
-      const next = new Set(prev);
-      next.has(skill) ? next.delete(skill) : next.add(skill);
-      return next;
-    });
-  }
+  const skillCount = isEditable ? selectedSet.size : (data.selected_skills?.flatMap((c) => c.skills) || []).length;
+  const categoryCount = isEditable
+    ? (resumeJson?.skills || []).filter((cat) => (cat.skills || []).some((s) => selectedSet.has(s))).length
+    : (data.selected_skills || []).length;
 
   return (
-    <div className="space-y-4">
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <p style={{ fontSize: 12, fontWeight: 500, color: "#64748b" }}>
+        <span style={{ fontWeight: 700, color: "#0f172a" }}>{skillCount}</span> skills selected across{" "}
+        <span style={{ fontWeight: 700, color: "#0f172a" }}>{categoryCount}</span> categories
+      </p>
       {isEditable && (
-        <p className="text-[10px] font-black uppercase tracking-widest text-primary/60">
-          Click skills to toggle them on or off
+        <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "#94a3b8" }}>
+          Click skills to toggle
         </p>
       )}
-      {allSkills.map((cat, i) => (
-        <div key={i} className="space-y-1.5">
-          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+      {(isEditable ? allSkills : data.selected_skills || []).map((cat, i) => (
+        <div key={i}>
+          <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 6 }}>
             {cat.category}
           </p>
-          <div className="flex flex-wrap gap-1">
-            {cat.skills?.map((s) => {
-              const isSelected = selectedSet.has(s);
-              return isEditable ? (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => toggleSkill(s)}
-                  className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border transition-all
-                    ${
-                      isSelected
-                        ? "bg-slate-900 text-white border-slate-900 hover:bg-slate-700 hover:border-slate-700"
-                        : "bg-slate-50 text-slate-400 border-slate-100 hover:bg-slate-100 hover:text-slate-500"
-                    }`}
-                >
-                  {s}
-                </button>
-              ) : (
-                <span
-                  key={s}
-                  className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border
-                    ${
-                      isSelected
-                        ? "bg-slate-900 text-white border-slate-900"
-                        : "bg-slate-50 text-slate-400 border-slate-100"
-                    }`}
-                >
-                  {s}
-                </span>
-              );
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+            {(cat.skills || []).map((s) => {
+              const isSelected = isEditable ? selectedSet.has(s) : true;
+              if (isEditable) {
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => {
+                      setSelectedSet((prev) => {
+                        const next = new Set(prev);
+                        next.has(s) ? next.delete(s) : next.add(s);
+                        return next;
+                      });
+                    }}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      padding: "3px 10px",
+                      borderRadius: 999,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      lineHeight: "18px",
+                      whiteSpace: "nowrap",
+                      cursor: "pointer",
+                      border: "none",
+                      background: isSelected ? "hsl(220 20% 18%)" : "#f1f5f9",
+                      color: isSelected ? "#f8fafc" : "#94a3b8",
+                      transition: "all .15s",
+                    }}
+                  >
+                    {s}
+                  </button>
+                );
+              }
+              return <SkillTag key={s} label={s} variant="dark" />;
             })}
           </div>
         </div>
@@ -321,68 +519,82 @@ function SkillsSelectionData({
   );
 }
 
+// ─── Project Rewrite Data (read-only, in step history) ────────────
+
 function ProjectRewriteData({ data, resumeJson }) {
   const origMap = Object.fromEntries(
-    (resumeJson?.projects || []).map((p) => [p.title, p.bullets]),
+    (resumeJson?.projects || []).map((p) => [p.title, p.bullets])
   );
   return (
-    <div className="space-y-6">
-      {data.rewritten_projects?.map((p, i) => (
-        <div key={i} className="space-y-2">
-          <p className="font-bold text-sm tracking-tight">{p.title}</p>
-          <BulletDiff original={origMap[p.title] || []} rewritten={p.bullets} />
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {(data.rewritten_projects || []).map((p, i) => (
+        <div key={i}>
+          <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>
+            {p.title}
+          </p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 6 }}>Original</p>
+              {(origMap[p.title] || []).map((b, j) => (
+                <div key={j} style={{ fontSize: 12, color: "#64748b", background: "#f8fafc", border: "1px solid #f1f5f9", borderRadius: 11, padding: "8px 12px", marginBottom: 4, lineHeight: 1.6 }}>{b}</div>
+              ))}
+            </div>
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "#059669", marginBottom: 6 }}>Rewritten</p>
+              {(p.bullets || []).map((b, j) => (
+                <div key={j} style={{ fontSize: 12, color: "#1e293b", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 11, padding: "8px 12px", marginBottom: 4, lineHeight: 1.6 }}>{b}</div>
+              ))}
+            </div>
+          </div>
         </div>
       ))}
     </div>
   );
 }
+
+// ─── Experience Rewrite Data ──────────────────────────────────────
 
 function ExperienceRewriteData({ data, resumeJson }) {
   const origMap = Object.fromEntries(
-    (resumeJson?.experience || []).map((e) => [e.company + e.role, e.bullets]),
+    (resumeJson?.experience || []).map((e) => [e.company + e.role, e.bullets])
   );
   return (
-    <div className="space-y-6">
-      {data.rewritten_experience?.map((e, i) => (
-        <div key={i} className="space-y-2">
-          <p className="font-bold text-sm tracking-tight">
-            {e.role}{" "}
-            <span className="font-normal text-slate-500">@ {e.company}</span>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {(data.rewritten_experience || []).map((e, i) => (
+        <div key={i}>
+          <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 13, fontWeight: 700, color: "#0f172a", marginBottom: 8 }}>
+            {e.role} <span style={{ fontWeight: 400, color: "#64748b" }}>@ {e.company}</span>
           </p>
-          <BulletDiff
-            original={origMap[e.company + e.role] || []}
-            rewritten={e.bullets}
-          />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 6 }}>Original</p>
+              {(origMap[e.company + e.role] || []).map((b, j) => (
+                <div key={j} style={{ fontSize: 12, color: "#64748b", background: "#f8fafc", border: "1px solid #f1f5f9", borderRadius: 11, padding: "8px 12px", marginBottom: 4, lineHeight: 1.6 }}>{b}</div>
+              ))}
+            </div>
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "#059669", marginBottom: 6 }}>Rewritten</p>
+              {(e.bullets || []).map((b, j) => (
+                <div key={j} style={{ fontSize: 12, color: "#1e293b", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 11, padding: "8px 12px", marginBottom: 4, lineHeight: 1.6 }}>{b}</div>
+              ))}
+            </div>
+          </div>
         </div>
       ))}
     </div>
   );
 }
 
-function NodeDataRenderer({
-  node,
-  data,
-  resumeJson,
-  isEditable,
-  onSkillsChange,
-}) {
-  if (node === "jd_parsing_node") return <JDData data={data} />;
-  if (node === "skill_match_node") return <SkillMatchData data={data} />;
-  if (node === "project_selection_node")
-    return <ProjectSelectionData data={data} />;
+// ─── Node data renderer ───────────────────────────────────────────
+
+function NodeDataRenderer({ node, data, resumeJson, isEditable, onSkillsChange }) {
+  if (node === "jd_parsing_node") return <JDContent data={data} />;
+  if (node === "skill_match_node") return <SkillMatchContent data={data} />;
+  if (node === "project_selection_node") return <ProjectSelectionContent data={data} />;
   if (node === "skill_selection_node")
-    return (
-      <SkillsSelectionData
-        data={data}
-        resumeJson={resumeJson}
-        isEditable={isEditable}
-        onChange={onSkillsChange}
-      />
-    );
-  if (node === "execute_project_rewrite_node")
-    return <ProjectRewriteData data={data} resumeJson={resumeJson} />;
-  if (node === "experience_rewrite_node")
-    return <ExperienceRewriteData data={data} resumeJson={resumeJson} />;
+    return <SkillSelectionContent data={data} resumeJson={resumeJson} isEditable={isEditable} onChange={onSkillsChange} />;
+  if (node === "execute_project_rewrite_node") return <ProjectRewriteData data={data} resumeJson={resumeJson} />;
+  if (node === "experience_rewrite_node") return <ExperienceRewriteData data={data} resumeJson={resumeJson} />;
   return null;
 }
 
@@ -391,58 +603,64 @@ function NodeDataRenderer({
 function StepRow({ step, isActive, resumeJson, isLast, onSkillsChange }) {
   const [collapsed, setCollapsed] = useState(false);
   const meta = NODE_META[step.node] || { label: step.label };
-
-  // Only the last completed step of skill_selection gets editable chips
-  const isEditableSkillStep =
-    isLast && step.node === "skill_selection_node" && !isActive;
+  const isEditableSkillStep = isLast && step.node === "skill_selection_node" && !isActive;
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      id={`step-${step.node}`}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="flex gap-4"
+      transition={{ duration: 0.35 }}
+      style={{ display: "flex", gap: 16, scrollMarginTop: 88 }}
     >
-      <div className="flex flex-col items-center">
+      {/* Icon column */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
         <div
-          className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 shadow-sm
-          ${isActive ? "bg-primary/10 border-2 border-primary/30" : "bg-emerald-50 border-2 border-emerald-200"}`}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 12,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            background: isActive ? "hsl(220 20% 95%)" : "#ecfdf5",
+            border: isActive ? "2px solid hsl(220 20% 78%)" : "2px solid #6ee7b7",
+          }}
         >
           {isActive ? (
-            <Loader2 className="w-4 h-4 text-primary animate-spin" />
+            <Loader2 style={{ width: 16, height: 16, color: "hsl(220 20% 40%)" }} className="animate-spin" />
           ) : (
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <CheckCircle2 style={{ width: 16, height: 16, color: "#10b981" }} />
           )}
         </div>
         {!isLast && (
-          <div className="w-0.5 flex-1 bg-border/40 mt-2 min-h-[16px]" />
+          <div style={{ width: 1, flexGrow: 1, background: "hsl(220 10% 90%)", marginTop: 4, minHeight: 16 }} />
         )}
       </div>
 
-      <div className="flex-1 pb-5">
-        <div className="flex items-center justify-between mb-2 min-h-[36px]">
-          <div className="flex items-center gap-2">
-            <span
-              className={`text-sm font-bold tracking-tight ${isActive ? "text-primary" : "text-slate-700"}`}
-            >
+      {/* Content */}
+      <div style={{ flex: 1, paddingBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 36, marginBottom: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: isActive ? "hsl(220 20% 40%)" : "#1e293b", whiteSpace: "nowrap" }}>
               {meta.label}
             </span>
             {isActive && (
-              <span className="text-[10px] font-black uppercase tracking-widest text-primary/60 animate-pulse">
-                Running...
+              <span
+                style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "hsl(220 20% 50%)" }}
+                className="animate-pulse"
+              >
+                Running…
               </span>
             )}
           </div>
           {!isActive && step.data && !isEditableSkillStep && (
             <button
               onClick={() => setCollapsed((c) => !c)}
-              className="text-slate-400 hover:text-slate-600 transition-colors"
+              style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: 0 }}
             >
-              {collapsed ? (
-                <ChevronDown className="w-4 h-4" />
-              ) : (
-                <ChevronUp className="w-4 h-4" />
-              )}
+              {collapsed ? <ChevronDown style={{ width: 15, height: 15 }} /> : <ChevronUp style={{ width: 15, height: 15 }} />}
             </button>
           )}
         </div>
@@ -455,17 +673,23 @@ function StepRow({ step, isActive, resumeJson, isLast, onSkillsChange }) {
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <Card className="border-border/50 bg-white/60 backdrop-blur-sm rounded-2xl">
-                <CardContent className="p-4">
-                  <NodeDataRenderer
-                    node={step.node}
-                    data={step.data}
-                    resumeJson={resumeJson}
-                    isEditable={isEditableSkillStep}
-                    onSkillsChange={onSkillsChange}
-                  />
-                </CardContent>
-              </Card>
+              <div
+                style={{
+                  background: "#fff",
+                  border: "1px solid hsl(220 10% 91%)",
+                  borderRadius: 16,
+                  padding: "18px 20px",
+                  boxShadow: "0 1px 6px -2px rgba(0,0,0,.05)",
+                }}
+              >
+                <NodeDataRenderer
+                  node={step.node}
+                  data={step.data}
+                  resumeJson={resumeJson}
+                  isEditable={isEditableSkillStep}
+                  onSkillsChange={onSkillsChange}
+                />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -474,211 +698,421 @@ function StepRow({ step, isActive, resumeJson, isLast, onSkillsChange }) {
   );
 }
 
-// ─── Interrupt panel ──────────────────────────────────────────────
-// selectionData: optional — when provided (skill_selection interrupt),
-// it is merged into the submission payload as `selected_skills`.
-// interruptPayloads: [{id, value}] from application.interrupt_payloads
+// ─── Project Carousel ─────────────────────────────────────────────
 
-function InterruptPanel({ node, interruptPayloads = [], onSubmit, isSubmitting, selectionData }) {
-  const isSingle = interruptPayloads.length <= 1;
-  const label = INTERRUPT_LABELS[node] || "Review this step";
-  const panelRef = useRef(null);
-
-  const [feedback, setFeedback] = useState("");
-
-  const [multiState, setMultiState] = useState(() =>
+function ProjectCarousel({ interruptPayloads, resumeJson, onSubmit, isSubmitting }) {
+  const [idx, setIdx] = useState(0);
+  const [dir, setDir] = useState(1);
+  const [bumpKey, setBumpKey] = useState(0);
+  const [decisions, setDecisions] = useState(() =>
     Object.fromEntries(
-      interruptPayloads.map((p) => [p.id, { approved: null, feedback: "" }]),
-    ),
+      interruptPayloads.map((p) => [p.id, { approved: null, feedback: "", showFeedback: false }])
+    )
   );
+  const [showCompare, setShowCompare] = useState(false);
+  const feedbackRef = useRef(null);
+
+  const current = interruptPayloads[idx];
+  const project = current?.value?.rewritten_project;
+  const origMap = Object.fromEntries(
+    (resumeJson?.projects || []).map((p) => [p.title, p.bullets])
+  );
+  const originalBullets = project ? (origMap[project.title] || []) : [];
+  const decision = decisions[current?.id] || { approved: null, feedback: "", showFeedback: false };
+  const allDecided = interruptPayloads.every((p) => decisions[p.id]?.approved !== null);
+  const pendingCount = interruptPayloads.filter((p) => decisions[p.id]?.approved === null).length;
+
+  function goTo(newIdx) {
+    setDir(newIdx > idx ? 1 : -1);
+    setIdx(newIdx);
+    setBumpKey((k) => k + 1);
+    setShowCompare(false);
+  }
+
+  function setDecision(id, patch) {
+    setDecisions((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+  }
+
+  function handleApprove() {
+    setDecision(current.id, { approved: true, showFeedback: false });
+    const next = interruptPayloads.findIndex((p, i) => i > idx && decisions[p.id]?.approved === null);
+    if (next !== -1) {
+      setTimeout(() => goTo(next), 300);
+    }
+  }
+
+  function handleRequestChanges() {
+    setDecision(current.id, { approved: false, showFeedback: true });
+    setTimeout(() => feedbackRef.current?.focus(), 50);
+  }
+
+  function handleSubmit() {
+    const responses = interruptPayloads.map((p) => ({
+      interrupt_id: p.id,
+      approved: decisions[p.id]?.approved ?? true,
+      feedback: decisions[p.id]?.feedback || "",
+    }));
+    onSubmit({ responses });
+  }
+
+  const slideVariants = {
+    enter: (d) => ({ x: d > 0 ? 24 : -24, opacity: 0 }),
+    center: { x: 0, opacity: 1 },
+    exit: (d) => ({ x: d > 0 ? -24 : 24, opacity: 0 }),
+  };
+
+  return (
+    <div id="step-__review__" style={{ display: "flex", gap: 16, scrollMarginTop: 88 }}>
+      {/* Icon column */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 12,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            background: "hsl(220 20% 95%)",
+            border: "2px solid hsl(220 20% 78%)",
+          }}
+        >
+          <AlertCircle style={{ width: 16, height: 16, color: "hsl(220 20% 40%)" }} />
+        </div>
+      </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, paddingBottom: 20 }}>
+        {/* Header row */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#1e293b" }}>Review rewritten projects</p>
+            <p style={{ fontSize: 11, fontWeight: 500, color: "#94a3b8", marginTop: 2 }}>Approve each or request changes</p>
+          </div>
+          {/* Stepper dots */}
+          <div style={{ display: "flex", gap: 5, alignItems: "center", paddingTop: 2 }}>
+            {interruptPayloads.map((p, i) => {
+              const d = decisions[p.id];
+              const isActive = i === idx;
+              const isApproved = d?.approved === true;
+              const isRejected = d?.approved === false;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => goTo(i)}
+                  style={{
+                    width: isActive ? 20 : 8,
+                    height: 8,
+                    borderRadius: 99,
+                    border: "none",
+                    cursor: "pointer",
+                    transition: "all .25s ease",
+                    background: isActive
+                      ? "hsl(220 20% 20%)"
+                      : isApproved
+                      ? "#10b981"
+                      : isRejected
+                      ? "#f43f5e"
+                      : "#cbd5e1",
+                    padding: 0,
+                  }}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Card */}
+        <AnimatePresence custom={dir} mode="wait">
+          <motion.div
+            key={bumpKey}
+            custom={dir}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.22, ease: "easeOut" }}
+            style={{
+              background: "#fff",
+              border: "1px solid hsl(220 10% 90%)",
+              borderRadius: 20,
+              boxShadow: "0 1px 8px -2px rgba(0,0,0,.06)",
+              overflow: "hidden",
+            }}
+          >
+            {/* Card header */}
+            <div style={{ padding: "18px 20px 16px", borderBottom: "1px solid hsl(220 10% 95%)", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+              <div>
+                <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 17, fontWeight: 700, color: "#0f172a", lineHeight: 1.25 }}>
+                  {project?.title}
+                </p>
+                <p style={{ fontSize: 11, fontWeight: 500, color: "#94a3b8", marginTop: 2 }}>
+                  Project {idx + 1} of {interruptPayloads.length}
+                </p>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {decision.approved === true && (
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#15803d", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 99, padding: "3px 10px" }}>Approved</span>
+                )}
+                {decision.approved === false && (
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#be123c", background: "#fff1f2", border: "1px solid #fecdd3", borderRadius: 99, padding: "3px 10px" }}>Changes requested</span>
+                )}
+                <button
+                  onClick={() => idx > 0 && goTo(idx - 1)}
+                  disabled={idx === 0}
+                  style={{
+                    width: 28, height: 28, borderRadius: 8, border: "1px solid #e2e8f0", background: "#f8fafc",
+                    display: "flex", alignItems: "center", justifyContent: "center", cursor: idx === 0 ? "not-allowed" : "pointer",
+                    opacity: idx === 0 ? 0.3 : 1,
+                  }}
+                >
+                  <ChevronLeft style={{ width: 14, height: 14, color: "#475569" }} />
+                </button>
+                <button
+                  onClick={() => idx < interruptPayloads.length - 1 && goTo(idx + 1)}
+                  disabled={idx === interruptPayloads.length - 1}
+                  style={{
+                    width: 28, height: 28, borderRadius: 8, border: "1px solid #e2e8f0", background: "#f8fafc",
+                    display: "flex", alignItems: "center", justifyContent: "center", cursor: idx === interruptPayloads.length - 1 ? "not-allowed" : "pointer",
+                    opacity: idx === interruptPayloads.length - 1 ? 0.3 : 1,
+                  }}
+                >
+                  <ChevronRight style={{ width: 14, height: 14, color: "#475569" }} />
+                </button>
+              </div>
+            </div>
+
+            {/* Compare toggle */}
+            {originalBullets.length > 0 && (
+              <div style={{ padding: "10px 20px 0" }}>
+                <button
+                  onClick={() => setShowCompare((c) => !c)}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none",
+                    cursor: "pointer", fontSize: 11, fontWeight: 600, color: showCompare ? "#0f172a" : "#94a3b8",
+                  }}
+                >
+                  {showCompare ? <X style={{ width: 12, height: 12 }} /> : <FileText style={{ width: 12, height: 12 }} />}
+                  {showCompare ? "Hide original" : "Compare with original"}
+                </button>
+              </div>
+            )}
+
+            {/* Bullets */}
+            <div style={{ padding: "16px 20px" }}>
+              {showCompare ? (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 8 }}>Original</p>
+                    {originalBullets.map((b, i) => (
+                      <div key={i} style={{ fontSize: 13, color: "#64748b", background: "#f8fafc", border: "1px solid #f1f5f9", borderRadius: 11, padding: "10px 14px", marginBottom: 5, lineHeight: 1.65 }}>{b}</div>
+                    ))}
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "#059669", marginBottom: 8 }}>Rewritten</p>
+                    {(project?.bullets || []).map((b, i) => (
+                      <div key={i} style={{ fontSize: 13, color: "#1e293b", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 11, padding: "10px 14px", marginBottom: 5, lineHeight: 1.65 }}>{b}</div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                (project?.bullets || []).map((b, i) => (
+                  <div key={i} style={{ fontSize: 13, color: "#1e293b", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 11, padding: "10px 14px", marginBottom: 5, lineHeight: 1.65 }}>{b}</div>
+                ))
+              )}
+            </div>
+
+            {/* Feedback textarea */}
+            <AnimatePresence>
+              {decision.showFeedback && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  style={{ overflow: "hidden", padding: "0 20px" }}
+                >
+                  <p style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 6 }}>Describe what to change</p>
+                  <textarea
+                    ref={feedbackRef}
+                    value={decision.feedback}
+                    onChange={(e) => setDecision(current.id, { feedback: e.target.value })}
+                    placeholder="What should be changed?"
+                    style={{
+                      width: "100%", minHeight: 80, background: "#fafafa",
+                      border: "1px solid hsl(220 10% 88%)", borderRadius: 12,
+                      padding: "10px 14px", fontSize: 13, color: "#0f172a",
+                      lineHeight: 1.55, resize: "none", outline: "none",
+                      boxSizing: "border-box", marginBottom: 12,
+                      fontFamily: "inherit",
+                    }}
+                    onFocus={(e) => { e.target.style.borderColor = "hsl(220 20% 50%)"; }}
+                    onBlur={(e) => { e.target.style.borderColor = "hsl(220 10% 88%)"; }}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Action row */}
+            <div style={{ padding: "14px 20px 18px", borderTop: "1px solid hsl(220 10% 96%)", display: "flex", gap: 10 }}>
+              <button
+                onClick={handleApprove}
+                style={{
+                  flex: 1, height: 42, borderRadius: 12, border: "none", cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  fontSize: 13, fontWeight: 700,
+                  background: "hsl(220 20% 18%)", color: "#fff",
+                  opacity: decision.approved === false ? 0.5 : 1,
+                  boxShadow: decision.approved === true ? "0 1px 4px -1px hsl(220 20% 18% / .2)" : "none",
+                  transition: "opacity .15s",
+                }}
+              >
+                <CheckCircle2 style={{ width: 14, height: 14 }} />
+                {decision.approved === true ? "Approved" : "Approve"}
+              </button>
+              <button
+                onClick={handleRequestChanges}
+                style={{
+                  flex: 1, height: 42, borderRadius: 12, cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  fontSize: 13, fontWeight: 600,
+                  background: decision.approved === false ? "#fff1f2" : "#fff",
+                  color: decision.approved === false ? "#be123c" : "#475569",
+                  border: decision.approved === false ? "1.5px solid #fecdd3" : "1.5px solid hsl(220 10% 88%)",
+                  opacity: decision.approved === true ? 0.5 : 1,
+                  transition: "all .15s",
+                }}
+              >
+                <X style={{ width: 14, height: 14 }} />
+                Request changes
+              </button>
+            </div>
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Submit button */}
+        <div style={{ marginTop: 14 }}>
+          <button
+            onClick={handleSubmit}
+            disabled={!allDecided || isSubmitting}
+            style={{
+              width: "100%", height: 44, borderRadius: 13, border: "none", cursor: allDecided ? "pointer" : "not-allowed",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              fontSize: 13, fontWeight: 700,
+              background: allDecided ? "hsl(220 20% 18%)" : "hsl(220 10% 90%)",
+              color: allDecided ? "#fff" : "#94a3b8",
+              boxShadow: allDecided ? "0 4px 14px -3px hsl(220 20% 18% / .3)" : "none",
+              transition: "all .2s",
+            }}
+          >
+            {isSubmitting ? <Loader2 style={{ width: 16, height: 16 }} className="animate-spin" /> : <CheckCircle2 style={{ width: 16, height: 16 }} />}
+            Submit all reviews
+          </button>
+          {pendingCount > 0 && (
+            <p style={{ fontSize: 11, fontWeight: 500, color: "#94a3b8", textAlign: "center", marginTop: 6 }}>
+              {pendingCount} project{pendingCount > 1 ? "s" : ""} still need review
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Single interrupt panel ───────────────────────────────────────
+
+function SingleInterruptPanel({ node, interruptPayloads, onSubmit, isSubmitting, selectionData }) {
+  const [feedback, setFeedback] = useState("");
+  const panelRef = useRef(null);
+  const label =
+    node === "project_selection_review_node" ? "Review selected projects"
+    : node === "skill_selection_review_node" ? "Review skill selection"
+    : node === "experience_rewrite_review_node" ? "Review rewritten experience"
+    : "Review this step";
 
   useEffect(() => {
-    setTimeout(
-      () =>
-        panelRef.current?.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        }),
-      100,
-    );
+    setTimeout(() => panelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
   }, []);
 
-  function handleSingleSubmit(approved) {
+  function handleSubmit(approved) {
     const response = {
       interrupt_id: interruptPayloads[0]?.id,
       approved,
       feedback: approved ? "" : feedback,
     };
-    if (selectionData !== undefined) {
-      response.edited_skills = selectionData;
-    }
+    if (selectionData !== undefined) response.edited_skills = selectionData;
     onSubmit({ responses: [response] });
   }
-
-  function setMulti(id, patch) {
-    setMultiState((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
-  }
-
-  function handleMultiSubmit() {
-    const responses = interruptPayloads.map((p) => ({
-      interrupt_id: p.id,
-      approved: multiState[p.id]?.approved ?? true,
-      feedback: multiState[p.id]?.feedback || "",
-    }));
-    onSubmit({ responses });
-  }
-
-  const allDecided = interruptPayloads.every(
-    (p) => multiState[p.id]?.approved !== null,
-  );
 
   return (
     <motion.div
       ref={panelRef}
+      id="step-__review__"
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.35 }}
-      className="pl-[52px]"
+      style={{ display: "flex", gap: 16, scrollMarginTop: 88 }}
     >
-      {isSingle ? (
-        <Card className="border-primary/20 bg-primary/5 rounded-2xl shadow-sm">
-          <CardContent className="p-5 space-y-4">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-primary" />
-              <p className="font-bold text-sm text-primary">{label}</p>
-            </div>
-            {node === "skill_selection_review_node" ? (
-              <Button
-                onClick={() => handleSingleSubmit(true)}
-                disabled={isSubmitting}
-                className="w-full btn-primary rounded-xl font-bold"
-              >
-                {isSubmitting ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                ) : (
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                )}
-                Looks good, continue
-              </Button>
-            ) : (
-              <>
-                <Textarea
-                  value={feedback}
-                  onChange={(e) => setFeedback(e.target.value)}
-                  placeholder="Leave blank to approve, or describe what to change..."
-                  className="min-h-[80px] text-sm rounded-xl border-border/60 resize-none"
-                />
-                <div className="flex gap-3">
-                  <Button
-                    onClick={() => handleSingleSubmit(true)}
-                    disabled={isSubmitting}
-                    className="flex-1 btn-primary rounded-xl font-bold"
-                  >
-                    {isSubmitting ? (
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    ) : (
-                      <CheckCircle2 className="w-4 h-4 mr-2" />
-                    )}
-                    Looks good, continue
-                  </Button>
-                  <Button
-                    onClick={() => handleSingleSubmit(false)}
-                    disabled={!feedback.trim() || isSubmitting}
-                    variant="outline"
-                    className="flex-1 rounded-xl font-bold border-border/60"
-                  >
-                    Request changes
-                  </Button>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 pl-1">
-            <AlertCircle className="w-4 h-4 text-primary" />
-            <p className="font-bold text-sm text-primary">{label}</p>
-          </div>
-          {interruptPayloads.map((interrupt) => {
-            const project = interrupt.value?.rewritten_project;
-            const s = multiState[interrupt.id] || { approved: null, feedback: "" };
-            return (
-              <Card
-                key={interrupt.id}
-                className="border-primary/20 bg-primary/5 rounded-2xl shadow-sm"
-              >
-                <CardContent className="p-5 space-y-4">
-                  {project && (
-                    <div className="space-y-2">
-                      <p className="font-bold text-sm tracking-tight">
-                        {project.title}
-                      </p>
-                      <ul className="space-y-1.5">
-                        {project.bullets?.map((b, i) => (
-                          <li
-                            key={i}
-                            className="text-xs text-slate-700 bg-emerald-50 rounded-lg px-3 py-2 leading-relaxed border border-emerald-100"
-                          >
-                            {b}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {s.approved === false && (
-                    <Textarea
-                      value={s.feedback}
-                      onChange={(e) =>
-                        setMulti(interrupt.id, { feedback: e.target.value })
-                      }
-                      placeholder="What should be changed?"
-                      className="min-h-[60px] text-sm rounded-xl border-border/60 resize-none"
-                    />
-                  )}
-                  <div className="flex gap-3">
-                    <Button
-                      onClick={() =>
-                        setMulti(interrupt.id, { approved: true, feedback: "" })
-                      }
-                      variant={s.approved === true ? "default" : "outline"}
-                      className="flex-1 rounded-xl font-bold"
-                    >
-                      <CheckCircle2 className="w-4 h-4 mr-2" />
-                      Approve
-                    </Button>
-                    <Button
-                      onClick={() => setMulti(interrupt.id, { approved: false })}
-                      variant={s.approved === false ? "default" : "outline"}
-                      className="flex-1 rounded-xl font-bold border-border/60"
-                    >
-                      Request changes
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-          <Button
-            onClick={handleMultiSubmit}
-            disabled={!allDecided || isSubmitting}
-            className="w-full btn-primary rounded-xl font-bold"
-          >
-            {isSubmitting ? (
-              <Loader2 className="w-4 h-4 animate-spin mr-2" />
-            ) : (
-              <CheckCircle2 className="w-4 h-4 mr-2" />
-            )}
-            Submit all reviews
-          </Button>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <div style={{ width: 36, height: 36, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: "hsl(220 20% 95%)", border: "2px solid hsl(220 20% 78%)" }}>
+          <AlertCircle style={{ width: 16, height: 16, color: "hsl(220 20% 40%)" }} />
         </div>
-      )}
+      </div>
+      <div style={{ flex: 1, paddingBottom: 20 }}>
+        <p style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", marginBottom: 12 }}>{label}</p>
+        <div style={{ background: "#fff", border: "1px solid hsl(220 10% 91%)", borderRadius: 16, padding: "18px 20px", boxShadow: "0 1px 6px -2px rgba(0,0,0,.05)" }}>
+          {node !== "skill_selection_review_node" && (
+            <textarea
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder="Leave blank to approve, or describe what to change..."
+              style={{
+                width: "100%", minHeight: 80, background: "#fafafa",
+                border: "1px solid hsl(220 10% 88%)", borderRadius: 12,
+                padding: "10px 14px", fontSize: 13, color: "#0f172a",
+                lineHeight: 1.55, resize: "none", outline: "none",
+                boxSizing: "border-box", marginBottom: 12, fontFamily: "inherit",
+              }}
+            />
+          )}
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={() => handleSubmit(true)}
+              disabled={isSubmitting}
+              style={{
+                flex: 1, height: 42, borderRadius: 12, border: "none", cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                fontSize: 13, fontWeight: 700, background: "hsl(220 20% 18%)", color: "#fff",
+              }}
+            >
+              {isSubmitting ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" /> : <CheckCircle2 style={{ width: 14, height: 14 }} />}
+              Looks good, continue
+            </button>
+            {node !== "skill_selection_review_node" && (
+              <button
+                onClick={() => handleSubmit(false)}
+                disabled={!feedback.trim() || isSubmitting}
+                style={{
+                  flex: 1, height: 42, borderRadius: 12, cursor: feedback.trim() ? "pointer" : "not-allowed",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  fontSize: 13, fontWeight: 600, background: "#fff", color: "#475569",
+                  border: "1.5px solid hsl(220 10% 88%)", opacity: feedback.trim() ? 1 : 0.5,
+                }}
+              >
+                Request changes
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </motion.div>
   );
 }
 
 // ─── Complete banner ──────────────────────────────────────────────
+
 function CompleteBanner({ pdfKey, latexContent }) {
   const [copied, setCopied] = useState(false);
 
@@ -691,50 +1125,55 @@ function CompleteBanner({ pdfKey, latexContent }) {
 
   return (
     <motion.div
+      id="step-__complete__"
       initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.4 }}
-      className="pl-[52px]"
+      style={{ scrollMarginTop: 88 }}
     >
-      <Card className="border-emerald-200 bg-emerald-50 rounded-2xl">
-        <CardContent className="p-5 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-emerald-600" />
-            </div>
-            <div>
-              <p className="font-bold text-sm text-emerald-800">
-                Resume tailored successfully
-              </p>
-              <p className="text-xs text-emerald-600">
-                Your tailored resume is ready to download
-              </p>
-            </div>
+      <div
+        style={{
+          background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 20,
+          padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ width: 40, height: 40, background: "#dcfce7", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Sparkles style={{ width: 20, height: 20, color: "#16a34a" }} />
           </div>
-          <div className="flex gap-2">
-            {latexContent && (
-              <Button
-                onClick={handleCopy}
-                variant="outline"
-                className="rounded-xl font-bold border-emerald-200 text-emerald-700 hover:bg-emerald-100"
-              >
-                {copied ? (
-                  <Check className="w-4 h-4 mr-2 text-emerald-600" />
-                ) : (
-                  <Copy className="w-4 h-4 mr-2" />
-                )}
-                {copied ? "Copied!" : "Copy LaTeX"}
-              </Button>
-            )}
-            {pdfKey && (
-              <Button className="rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
-                <FileDown className="w-4 h-4 mr-2" />
-                Download PDF
-              </Button>
-            )}
+          <div>
+            <p style={{ fontSize: 13, fontWeight: 700, color: "#166534" }}>Resume tailored successfully</p>
+            <p style={{ fontSize: 12, color: "#16a34a", marginTop: 2 }}>Your tailored resume is ready to download</p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          {latexContent && (
+            <button
+              onClick={handleCopy}
+              style={{
+                height: 38, padding: "0 14px", borderRadius: 12, cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700,
+                background: "#fff", color: "#15803d", border: "1px solid #bbf7d0",
+              }}
+            >
+              {copied ? <Check style={{ width: 14, height: 14 }} /> : <Copy style={{ width: 14, height: 14 }} />}
+              {copied ? "Copied!" : "Copy LaTeX"}
+            </button>
+          )}
+          {pdfKey && (
+            <button
+              style={{
+                height: 38, padding: "0 16px", borderRadius: 12, border: "none", cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700,
+                background: "#16a34a", color: "#fff",
+              }}
+            >
+              <FileDown style={{ width: 14, height: 14 }} />
+              Download PDF
+            </button>
+          )}
+        </div>
+      </div>
     </motion.div>
   );
 }
@@ -744,15 +1183,11 @@ function CompleteBanner({ pdfKey, latexContent }) {
 export default function ApplicationDetail() {
   const { id } = useParams();
   const { token } = useAuth();
-  const { sendApplicationFeedback, updateApplicationStatus } =
-    useApplications();
+  const { sendApplicationFeedback, updateApplicationStatus } = useApplications();
 
   const [application, setApplication] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Tracks the current skill selection when interrupted at skill_selection_node.
-  // Initialised from step data; updated as the user toggles chips.
   const [pendingSkillSelection, setPendingSkillSelection] = useState(null);
 
   const intervalRef = useRef(null);
@@ -782,26 +1217,18 @@ export default function ApplicationDetail() {
   useEffect(() => {
     if (!id || !token) return;
     fetchApplication().then((app) => {
-      if (app && !TERMINAL_STATUSES.includes(app.status)) {
-        startPolling();
-      }
+      if (app && !TERMINAL_STATUSES.includes(app.status)) startPolling();
     });
     return () => clearInterval(intervalRef.current);
   }, [id, token]);
 
-  // When the application loads/updates into an interrupted skill_selection state,
-  // seed pendingSkillSelection from the last step's data.
   useEffect(() => {
     if (
       application?.status === "interrupted" &&
       application?.current_node === "skill_selection_review_node"
     ) {
-      const skillStep = [...(application.steps || [])]
-        .reverse()
-        .find((s) => s.node === "skill_selection_node");
-      if (skillStep?.data?.selected_skills) {
-        setPendingSkillSelection(skillStep.data.selected_skills);
-      }
+      const skillStep = [...(application.steps || [])].reverse().find((s) => s.node === "skill_selection_node");
+      if (skillStep?.data?.selected_skills) setPendingSkillSelection(skillStep.data.selected_skills);
     } else {
       setPendingSkillSelection(null);
     }
@@ -811,10 +1238,19 @@ export default function ApplicationDetail() {
     setIsSubmitting(true);
     try {
       await sendApplicationFeedback(feedback, id);
+      const editedSkills = feedback.responses?.find((r) => r.edited_skills != null)?.edited_skills;
       setApplication((prev) => ({
         ...prev,
         status: "tailoring",
         current_node: null,
+        interrupt_payloads: null,
+        steps: editedSkills
+          ? prev.steps.map((s) =>
+              s.node === "skill_selection_node"
+                ? { ...s, data: { ...s.data, selected_skills: editedSkills } }
+                : s
+            )
+          : prev.steps,
       }));
       startPolling();
     } catch (err) {
@@ -840,183 +1276,204 @@ export default function ApplicationDetail() {
     );
   }
 
-  const {
-    steps = [],
-    status,
-    current_node,
-    pdf_key,
-    resume_json,
-  } = application;
-
-  const POST_TAILOR_STATUSES = [
-    "tailored",
-    "applied",
-    "interviewing",
-    "rejected",
-  ];
+  const { steps = [], status, current_node, pdf_key, resume_json } = application;
 
   const isInterrupted = status === "interrupted";
   const isComplete = POST_TAILOR_STATUSES.includes(status);
   const isFailed = status === "failed";
   const isTailoring = status === "tailoring";
+  const hasActiveNode = current_node && isTailoring && !isInterrupted;
 
-  const statusColor = isInterrupted
-    ? "bg-amber-50 text-amber-700 border-amber-200"
-    : isComplete
-      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-      : isFailed
-        ? "bg-red-50 text-red-600 border-red-200"
-        : "bg-primary/10 text-primary border-primary/20";
+  const isProjectRewriteInterrupt =
+    isInterrupted && current_node === "execute_project_rewrite_node";
+  const interruptPayloads = application.interrupt_payloads || [];
+
+  const lastStepIndex = steps.length - 1;
 
   const statusLabel = isInterrupted
     ? "Waiting for review"
     : isComplete
-      ? "Complete"
-      : isFailed
-        ? "Failed"
-        : "Tailoring...";
+    ? "Complete"
+    : isFailed
+    ? "Failed"
+    : "Tailoring...";
 
-  const hasActiveNode = current_node && isTailoring && !isInterrupted;
-  const totalItems =
-    steps.length +
-    (hasActiveNode ? 1 : 0) +
-    (isInterrupted || isComplete || isFailed ? 1 : 0);
-  let itemIndex = 0;
-
-  // The last completed step index — used to mark which StepRow gets isLast=true
-  // when interrupted (so the skill chips in that step become editable).
-  const lastStepIndex = steps.length - 1;
+  const statusStyle = isInterrupted
+    ? { bg: "#fffbeb", color: "#b45309", border: "#fde68a" }
+    : isComplete
+    ? { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" }
+    : isFailed
+    ? { bg: "#fff1f2", color: "#be123c", border: "#fecdd3" }
+    : { bg: "hsl(220 20% 96%)", color: "hsl(220 20% 40%)", border: "hsl(220 20% 85%)" };
 
   return (
-    <div className="max-w-3xl mx-auto py-8 px-4 space-y-8">
-      {/* header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-display font-black tracking-tight">
-            {application.title || "Application"}
-          </h1>
-          <p className="text-sm text-muted-foreground font-medium">
-            {application.company_name || application.job_id}
-          </p>
-        </div>
-        <span
-          className={`text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-full border ${statusColor}`}
-        >
-          {statusLabel}
-        </span>
-      </div>
+    <div style={{ maxWidth: 1200, margin: "0 auto", padding: "40px 32px 80px" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "260px 1fr",
+          gap: 48,
+          alignItems: "start",
+        }}
+        className="lg:grid block"
+      >
+        {/* Sidebar */}
+        <Sidebar steps={steps} status={status} currentNode={current_node} />
 
-      {POST_TAILOR_STATUSES.includes(application.status) && (
-        <Select
-          value={application.status}
-          onValueChange={(value) => {
-            updateApplicationStatus(id, value);
-            setApplication((prev) => ({ ...prev, status: value }));
-          }}
-        >
-          <SelectTrigger className="w-44 rounded-xl border-border/60 text-sm font-semibold">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="rounded-xl">
-            <SelectItem value="tailored">Tailored</SelectItem>
-            <SelectItem value="applied">Applied</SelectItem>
-            <SelectItem value="interviewing">Interviewing</SelectItem>
-            <SelectItem value="rejected">Rejected</SelectItem>
-          </SelectContent>
-        </Select>
-      )}
-
-      {/* timeline */}
-      <div>
-        {steps.map((step, i) => {
-          itemIndex++;
-          const isLastStep = i === lastStepIndex;
-
-          // A step is the "active last" for skill editing only when:
-          // - it's the final step in the list
-          // - the run is currently interrupted
-          // - there's nothing running after it (no active node)
-          const isEditableLast = isLastStep && isInterrupted && !hasActiveNode;
-
-          return (
-            <StepRow
-              key={step.id}
-              step={step}
-              isActive={false}
-              resumeJson={resume_json}
-              isLast={isEditableLast}
-              onSkillsChange={
-                isEditableLast && step.node === "skill_selection_node"
-                  ? setPendingSkillSelection
-                  : undefined
-              }
-            />
-          );
-        })}
-
-        <AnimatePresence>
-          {hasActiveNode && (
-            <StepRow
-              key="active"
-              step={{
-                node: current_node,
-                label: NODE_META[current_node]?.label,
-                data: null,
+        {/* Main column */}
+        <div style={{ maxWidth: 760 }}>
+          {/* Header */}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 32 }}>
+            <div>
+              <h1
+                style={{
+                  fontFamily: "'Playfair Display', serif",
+                  fontWeight: 900,
+                  fontSize: 32,
+                  letterSpacing: "-0.02em",
+                  color: "#0f172a",
+                  lineHeight: 1.1,
+                  margin: 0,
+                }}
+              >
+                {application.title || "Application"}
+              </h1>
+              <p style={{ fontSize: 13, fontWeight: 500, color: "#64748b", marginTop: 4 }}>
+                {application.company_name || application.job_id}
+              </p>
+            </div>
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 800,
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                padding: "5px 14px",
+                borderRadius: 99,
+                background: statusStyle.bg,
+                color: statusStyle.color,
+                border: `1px solid ${statusStyle.border}`,
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+                marginTop: 4,
               }}
-              isActive={true}
-              resumeJson={resume_json}
-              isLast={!isInterrupted && !isComplete && !isFailed}
-            />
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {isInterrupted && (
-            <InterruptPanel
-              key="interrupt"
-              node={current_node}
-              interruptPayloads={application.interrupt_payloads || []}
-              onSubmit={handleFeedback}
-              isSubmitting={isSubmitting}
-              // Only pass selectionData when interrupted at skill_selection
-              selectionData={
-                current_node === "skill_selection_review_node"
-                  ? pendingSkillSelection
-                  : undefined
-              }
-            />
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {isComplete && (
-            <CompleteBanner
-              key="complete"
-              pdfKey={pdf_key}
-              latexContent={application.latex}
-            />
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {isFailed && (
-            <motion.div
-              key="failed"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="pl-[52px]"
             >
-              <Card className="border-red-200 bg-red-50 rounded-2xl">
-                <CardContent className="p-5 flex items-center gap-3">
-                  <AlertCircle className="w-5 h-5 text-red-500" />
-                  <p className="text-sm font-bold text-red-700">
-                    Something went wrong. Please try again.
-                  </p>
-                </CardContent>
-              </Card>
-            </motion.div>
+              {statusLabel}
+            </span>
+          </div>
+
+          {/* Status selector */}
+          {POST_TAILOR_STATUSES.includes(status) && (
+            <div style={{ marginBottom: 24 }}>
+              <Select
+                value={status}
+                onValueChange={(value) => {
+                  updateApplicationStatus(id, value);
+                  setApplication((prev) => ({ ...prev, status: value }));
+                }}
+              >
+                <SelectTrigger className="w-44 rounded-xl border-border/60 text-sm font-semibold">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="tailored">Tailored</SelectItem>
+                  <SelectItem value="applied">Applied</SelectItem>
+                  <SelectItem value="interviewing">Interviewing</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           )}
-        </AnimatePresence>
+
+          {/* Timeline */}
+          <div>
+            {steps.map((step, i) => {
+              const isEditableLast =
+                i === lastStepIndex &&
+                isInterrupted &&
+                !hasActiveNode &&
+                current_node === "skill_selection_review_node";
+              return (
+                <StepRow
+                  key={step.id}
+                  step={step}
+                  isActive={false}
+                  resumeJson={resume_json}
+                  isLast={isEditableLast}
+                  onSkillsChange={
+                    isEditableLast && step.node === "skill_selection_node"
+                      ? setPendingSkillSelection
+                      : undefined
+                  }
+                />
+              );
+            })}
+
+            <AnimatePresence>
+              {hasActiveNode && (
+                <StepRow
+                  key="active"
+                  step={{ node: current_node, label: NODE_META[current_node]?.label, data: null }}
+                  isActive={true}
+                  resumeJson={resume_json}
+                  isLast={true}
+                />
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {isProjectRewriteInterrupt && interruptPayloads.length > 0 && (
+                <ProjectCarousel
+                  key="carousel"
+                  interruptPayloads={interruptPayloads}
+                  resumeJson={resume_json}
+                  onSubmit={handleFeedback}
+                  isSubmitting={isSubmitting}
+                />
+              )}
+              {isInterrupted && !isProjectRewriteInterrupt && (
+                <SingleInterruptPanel
+                  key="interrupt"
+                  node={current_node}
+                  interruptPayloads={interruptPayloads}
+                  onSubmit={handleFeedback}
+                  isSubmitting={isSubmitting}
+                  selectionData={
+                    current_node === "skill_selection_review_node"
+                      ? pendingSkillSelection
+                      : undefined
+                  }
+                />
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {isComplete && (
+                <CompleteBanner key="complete" pdfKey={pdf_key} latexContent={application.latex} />
+              )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {isFailed && (
+                <motion.div
+                  key="failed"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  style={{ display: "flex", gap: 16 }}
+                >
+                  <div style={{ width: 36, height: 36, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: "#fff1f2", border: "2px solid #fecdd3", flexShrink: 0 }}>
+                    <AlertCircle style={{ width: 16, height: 16, color: "#be123c" }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ background: "#fff1f2", border: "1px solid #fecdd3", borderRadius: 16, padding: "18px 20px" }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: "#be123c" }}>Something went wrong. Please try again.</p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
       </div>
     </div>
   );
