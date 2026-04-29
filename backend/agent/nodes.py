@@ -4,10 +4,11 @@ from schemas import (
     SemanticMatchResponseSchema,
     ProjectSelectResponseSchema,
     SkillSelectionResponse,
-    ExperienceRewriteResponse,
     SkillMatchResultSchema,
     HumanReviewResponse,
     SkillCategory,
+    Project,
+    Experience,
 )
 from agent.state import TailorState
 from langgraph.types import interrupt, Send
@@ -20,12 +21,10 @@ from agent.prompts import (
     project_selection_user_prompt,
     SKILL_SELECTION_SYSTEM_PROMPT,
     skill_selection_user_prompt,
-    EXPERIENCE_REWRITE_SYSTEM_PROMPT,
-    experience_rewrite_user_prompt,
 )
 from agent.subagents.project_rewrite.graph import graph as project_rewrite_graph
+from agent.subagents.experience_rewrite.graph import graph as experience_rewrite_graph
 import json
-
 
 model = init_chat_model("gpt-5-nano")
 
@@ -33,7 +32,6 @@ jd_parsing_model = model.with_structured_output(JDResponseSchema)
 semantic_skill_match_model = model.with_structured_output(SemanticMatchResponseSchema)
 project_selection_model = model.with_structured_output(ProjectSelectResponseSchema)
 skill_selection_model = model.with_structured_output(SkillSelectionResponse)
-experience_rewrite_model = model.with_structured_output(ExperienceRewriteResponse)
 
 
 def jd_parsing_node(state: TailorState) -> TailorState:
@@ -213,10 +211,12 @@ def continue_to_project_rewrite_node(state: TailorState):
 
 
 def execute_project_rewrite_node(state: TailorState):
-    from schemas import Project
-
     project_in = state["project"]
-    title = project_in.title if hasattr(project_in, "title") else project_in.get("title", "?")
+    title = (
+        project_in.title
+        if hasattr(project_in, "title")
+        else project_in.get("title", "?")
+    )
 
     print(f"\n{'=' * 50}")
     print(f"  execute_project_rewrite_node : '{title}'")
@@ -225,7 +225,9 @@ def execute_project_rewrite_node(state: TailorState):
     result = project_rewrite_graph.invoke(
         {
             "jd_json": state["jd_json"].model_dump(),
-            "project": project_in.model_dump() if hasattr(project_in, "model_dump") else project_in,
+            "project": project_in.model_dump()
+            if hasattr(project_in, "model_dump")
+            else project_in,
         }
     )
 
@@ -247,63 +249,53 @@ def execute_project_rewrite_node(state: TailorState):
     return {"rewritten_projects": [project_out]}
 
 
-def experience_rewrite_node(state: TailorState):
-    messages = state.experience_rewrite_messages or [
-        {"role": "system", "content": EXPERIENCE_REWRITE_SYSTEM_PROMPT},
-        {"role": "user", "content": experience_rewrite_user_prompt(state)},
+def project_join_node(state: TailorState):
+    return {}
+
+
+def continue_to_experience_rewrite_node(state: TailorState):
+    return [
+        Send(
+            "execute_experience_rewrite_node",
+            {"jd_json": state.jd_json, "experience": e},
+        )
+        for e in state.resume_json.experience
     ]
 
-    response = experience_rewrite_model.invoke(messages)
 
-    if not state.experience_rewrite_messages:
-        messages_to_store = messages + [
-            {"role": "assistant", "content": response.model_dump_json()}
-        ]
-    else:
-        messages_to_store = [
-            {"role": "assistant", "content": response.model_dump_json()}
-        ]
+def execute_experience_rewrite_node(state: TailorState):
+    experience_in = state["experience"]
+    company = (
+        experience_in.company
+        if hasattr(experience_in, "company")
+        else experience_in.get("company", "?")
+    )
+    role = (
+        experience_in.role
+        if hasattr(experience_in, "role")
+        else experience_in.get("role", "?")
+    )
 
-    return {
-        "rewritten_experience": response.rewritten_experience,
-        "experience_rewrite_messages": messages_to_store,
-    }
+    print(f"\n{'=' * 50}")
+    print(f"  execute_experience_rewrite_node : '{role} @ {company}'")
+    print(f"{'=' * 50}")
 
-
-def experience_rewrite_review_node(state: TailorState):
-    human_response = interrupt(
+    result = experience_rewrite_graph.invoke(
         {
-            "rewritten_experience": [
-                p.model_dump() for p in state["rewritten_experience"]
-            ],
-            "message": "Review the rewritten experience. Approve or provide feedback.",
+            "jd_json": state["jd_json"].model_dump(),
+            "experience": experience_in.model_dump()
+            if hasattr(experience_in, "model_dump")
+            else experience_in,
         }
     )
 
-    response = HumanReviewResponse(**human_response)
+    raw = result["rewritten_experience"]
+    experience_out = Experience(**raw) if isinstance(raw, dict) else raw
 
-    if response.approved:
-        return {}
-    else:
-        return {
-            "experience_rewrite_messages": [
-                {
-                    "role": "user",
-                    "content": f"Human feedback: {response.feedback}. Please revise.",
-                }
-            ]
-        }
+    print(f"\n  subgraph done - '{role} @ {company}'")
+    print(f"     rewritten bullets : {len(experience_out.bullets)}")
 
-
-def should_rewrite_experience(
-    state: TailorState,
-) -> Literal["experience_rewrite_node", "assemble_resume_node"]:
-    if (
-        state.experience_rewrite_messages
-        and state.experience_rewrite_messages[-1]["role"] == "user"
-    ):
-        return "experience_rewrite_node"
-    return "assemble_resume_node"
+    return {"rewritten_experience": [experience_out]}
 
 
 def assemble_resume_node(state: TailorState):

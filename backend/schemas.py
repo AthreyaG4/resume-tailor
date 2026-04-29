@@ -188,7 +188,7 @@ class ProjectRewriteResponse(BaseModel):
 
 
 class ExperienceRewriteResponse(BaseModel):
-    rewritten_experience: list[Experience]
+    rewritten_experience: Experience
 
 
 class HumanReviewResponse(BaseModel):

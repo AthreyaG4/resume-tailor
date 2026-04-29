@@ -72,6 +72,7 @@ class Application(Base):
     )
     current_node = Column(String, nullable=True)
     interrupt_payloads = Column(JSON, nullable=True)
+    resolved_interrupt_ids = Column(JSON, nullable=True, default=list)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(
         DateTime,

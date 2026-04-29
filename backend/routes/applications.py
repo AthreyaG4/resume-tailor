@@ -30,17 +30,31 @@ NODE_LABELS = {
     "project_selection_node": "Selecting projects",
     "skill_selection_node": "Selecting skills",
     "execute_project_rewrite_node": "Rewriting project bullets",
-    "experience_rewrite_node": "Rewriting experience bullets",
+    "execute_experience_rewrite_node": "Rewriting experience bullets",
     "assemble_resume_node": "Assembling resume",
 }
 
 STRUCTURED_OUTPUT_NODES = {
     "jd_parsing_node",
     "skill_match_node",
-    "project_selection_node",
-    "skill_selection_node",
-    "execute_project_rewrite_node",
-    "experience_rewrite_node",
+}
+
+REVIEW_TO_NODE = {
+    "project_selection_review_node":    "project_selection_node",
+    "skill_selection_review_node":      "skill_selection_node",
+    "execute_project_rewrite_node":     "execute_project_rewrite_node",
+    "execute_experience_rewrite_node":  "execute_experience_rewrite_node",
+}
+
+CAROUSEL_CONFIG = {
+    "execute_project_rewrite_node": {
+        "state_key": "rewritten_projects",
+        "payload_key": "rewritten_project",
+    },
+    "execute_experience_rewrite_node": {
+        "state_key": "rewritten_experience",
+        "payload_key": "rewritten_experience",
+    },
 }
 
 
@@ -86,7 +100,22 @@ async def graph_stream(input, config: dict, application_id=None, db=None):
                 db.commit()
 
     final_state = tailor_agent.get_state(config)
-    # print("Final state:", final_state)
+
+    rewritten = final_state.values.get("rewritten_projects", [])
+    interrupts = final_state.interrupts or []
+    print(f"\n{'='*60}")
+    print(f"  graph_stream complete | next={final_state.next}")
+    print(f"  rewritten_projects in state : {len(rewritten)}")
+    for p in rewritten:
+        title = p.title if hasattr(p, 'title') else p.get('title', '?')
+        print(f"    - {title}")
+    print(f"  interrupts count : {len(interrupts)}")
+    for i in interrupts:
+        val = i.value or {}
+        proj = val.get("rewritten_project", {})
+        title = proj.get("title", "?") if isinstance(proj, dict) else getattr(proj, "title", "?")
+        print(f"    id={i.id}  project='{title}'")
+    print(f"{'='*60}\n")
 
     if db and application_id:
         app = db.query(Application).filter(Application.id == application_id).first()
@@ -94,9 +123,11 @@ async def graph_stream(input, config: dict, application_id=None, db=None):
         if final_state.next:
             app.current_node = final_state.next[0]
             app.status = ApplicationStatus.INTERRUPTED
+            resolved = set(app.resolved_interrupt_ids or [])
             app.interrupt_payloads = [
                 {"id": i.id, "value": serialize_output(i.value)}
                 for i in final_state.interrupts
+                if i.id not in resolved
             ]
         else:
             app.current_node = None
@@ -218,25 +249,51 @@ async def continue_application(
 
     config = {"configurable": {"thread_id": str(application.id)}}
 
+    all_approved = all(r.approved for r in feedback.responses)
+    node_name = REVIEW_TO_NODE.get(application.current_node)
+    payloads_by_id = {p["id"]: p["value"] for p in (application.interrupt_payloads or [])}
+
+    approved_ids = [r.interrupt_id for r in feedback.responses if r.approved]
+    existing_resolved = application.resolved_interrupt_ids or []
+    application.resolved_interrupt_ids = existing_resolved + approved_ids
+
     application.status = ApplicationStatus.TAILORING
     application.current_node = None
     application.interrupt_payloads = None
 
-    for r in feedback.responses:
-        if r.edited_skills is not None:
-            skill_step = (
-                db.query(ApplicationStep)
-                .filter(
-                    ApplicationStep.application_id == application_id,
-                    ApplicationStep.node == "skill_selection_node",
-                )
-                .first()
+    if node_name and all_approved:
+        carousel = CAROUSEL_CONFIG.get(node_name)
+        if carousel:
+            current_state = tailor_agent.get_state(config)
+            prev_items = current_state.values.get(carousel["state_key"], [])
+            this_round = [
+                payloads_by_id[r.interrupt_id][carousel["payload_key"]]
+                for r in feedback.responses
+                if r.interrupt_id in payloads_by_id
+            ]
+            all_items = (
+                [item.model_dump() if hasattr(item, "model_dump") else item for item in prev_items]
+                + this_round
             )
-            if skill_step:
-                skill_step.data = {
-                    **skill_step.data,
-                    "selected_skills": r.edited_skills,
-                }
+            db.add(ApplicationStep(
+                application_id=application_id,
+                node=node_name,
+                label=NODE_LABELS[node_name],
+                data={carousel["state_key"]: all_items},
+            ))
+        else:
+            for r in feedback.responses:
+                payload_value = payloads_by_id.get(r.interrupt_id)
+                if payload_value:
+                    step_data = dict(payload_value)
+                    if r.edited_skills is not None:
+                        step_data["selected_skills"] = r.edited_skills
+                    db.add(ApplicationStep(
+                        application_id=application_id,
+                        node=node_name,
+                        label=NODE_LABELS[node_name],
+                        data=step_data,
+                    ))
 
     db.commit()
 

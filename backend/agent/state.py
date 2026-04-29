@@ -21,6 +21,5 @@ class TailorState(BaseModel):
     skill_messages: Annotated[list, operator.add] = []
     selected_skills: Optional[List[SkillCategory]] = None
     rewritten_projects: Annotated[List[Project], operator.add] = []
-    experience_rewrite_messages: Annotated[list, operator.add] = []
-    rewritten_experience: Optional[List[Experience]] = None
+    rewritten_experience: Annotated[List[Experience], operator.add] = []
     tailored_resume_json: Optional[ResumeSchema] = None
