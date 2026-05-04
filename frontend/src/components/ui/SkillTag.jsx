@@ -1,29 +1,20 @@
-const styles = {
-  neutral: { bg: "#f8fafc", color: "#475569", border: "1px solid #e2e8f0" },
-  ghost:   { bg: "#f1f5f9", color: "#94a3b8", border: "1px solid #e2e8f0" },
-  matched: { bg: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0" },
-  missing: { bg: "#fff1f2", color: "#be123c", border: "1px solid #fecdd3" },
-  dark:    { bg: "hsl(220 20% 18%)", color: "#f8fafc", border: "1px solid hsl(220 20% 18%)" },
+const variants = {
+  neutral: "bg-slate-50 text-slate-600 border border-slate-200",
+  ghost:   "bg-slate-100 text-slate-400 border border-slate-300",
+  matched: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  missing: "bg-rose-50 text-rose-700 border border-rose-200",
+  dark:    "bg-[hsl(220_20%_18%)] text-slate-50 border border-[hsl(220_20%_18%)]",
+  green:   "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  purple:  "bg-violet-50 text-violet-700 border border-violet-300",
+  blue:    "bg-blue-50 text-blue-700 border border-blue-200",
+  gray:    "bg-slate-50 text-slate-500 border border-slate-300",
+  amber:   "bg-amber-50 text-amber-700 border border-amber-200",
 };
 
 export function SkillTag({ label, variant = "neutral" }) {
-  const s = styles[variant] || styles.neutral;
+  const cls = variants[variant] || variants.neutral;
   return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "3px 10px",
-        borderRadius: 999,
-        fontSize: 12,
-        fontWeight: 600,
-        lineHeight: "18px",
-        whiteSpace: "nowrap",
-        background: s.bg,
-        color: s.color,
-        border: s.border,
-      }}
-    >
+    <span className={`inline-flex items-center px-2.5 py-[3px] rounded-full text-xs font-semibold leading-[18px] whitespace-nowrap ${cls}`}>
       {label}
     </span>
   );

@@ -10,17 +10,18 @@ export function ScoreBar({ label, value }) {
   const pct = Math.round(value * 100);
   const c = scoreColor(pct);
   return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>{label}</span>
-        <span style={{ fontSize: 13, fontWeight: 800, color: c.fill, letterSpacing: "-0.01em" }}>{pct}%</span>
+    <div className="mb-2.5">
+      <div className="flex justify-between mb-[5px]">
+        <span className="text-xs font-semibold text-slate-500">{label}</span>
+        <span className="text-[13px] font-extrabold tracking-tight" style={{ color: c.fill }}>{pct}%</span>
       </div>
-      <div style={{ height: 7, borderRadius: 99, background: c.track, overflow: "hidden" }}>
+      <div className="h-[7px] rounded-full overflow-hidden" style={{ background: c.track }}>
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
           transition={{ duration: 0.9, ease: [0.4, 0, 0.2, 1] }}
-          style={{ height: "100%", borderRadius: 99, background: c.fill }}
+          className="h-full rounded-full"
+          style={{ background: c.fill }}
         />
       </div>
     </div>
