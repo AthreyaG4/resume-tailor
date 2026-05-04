@@ -1,5 +1,5 @@
 from config import settings
-from schemas import ResumeSchema
+from schemas import ParsedResumeSchema, ResumeSchema, Project, Experience
 import asyncio
 from llama_cloud_services import LlamaExtract, SourceText
 from llama_cloud import ExtractConfig, ExtractMode, ExtractTarget
@@ -7,7 +7,7 @@ from llama_cloud import ExtractConfig, ExtractMode, ExtractTarget
 LLAMA_PARSE_API_KEY = settings.LLAMA_PARSE_API_KEY
 
 
-async def parse_resume(file_bytes: bytes, filename: str) -> str:
+async def parse_resume(file_bytes: bytes, filename: str) -> dict:
     config = ExtractConfig(
         extraction_target=ExtractTarget.PER_DOC,
         extraction_mode=ExtractMode.MULTIMODAL,
@@ -29,12 +29,17 @@ async def parse_resume(file_bytes: bytes, filename: str) -> str:
     loop = asyncio.get_event_loop()
 
     def extract_resume():
-        print("STARTING TO PARSE")
         return extractor.extract(
-            ResumeSchema,
+            ParsedResumeSchema,
             config=config,
             files=SourceText(file=file_bytes, filename=filename),
         ).data
 
     result = await loop.run_in_executor(None, extract_resume)
-    return result
+
+    parsed = result if isinstance(result, dict) else result.model_dump()
+    projects = [Project(**p).model_dump() for p in parsed.get("projects", [])]
+    experience = [Experience(**e).model_dump() for e in parsed.get("experience", [])]
+    return ResumeSchema(
+        **{**parsed, "projects": projects, "experience": experience}
+    ).model_dump()

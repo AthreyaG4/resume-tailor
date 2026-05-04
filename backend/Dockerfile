@@ -38,4 +38,4 @@ RUN uv sync --no-dev --frozen
 
 COPY . .
 
-CMD ["uv", "run", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000"]
+CMD [".venv/bin/uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000"]

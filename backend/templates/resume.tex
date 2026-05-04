@@ -157,7 +157,56 @@
         ((*endif*))
     \end{header}
 
-    \section{Education}    
+    ((*if section_order*))
+    ((*for sec in section_order*))
+    ((*if sec.visible*))
+    ((*if sec.id == 'education'*))
+    \section{Education}
+        ((*for item in education*))
+        \textbf{(((item.institution))), (((item.location)))} \hfill \textbf{(((item.start_date))) – (((item.end_date)))} \\
+        (((item.degree))) in (((item.field_of_study))) \hfill ((*if item.gpa*))GPA: (((item.gpa)))((*endif*))
+        ((*endfor*))
+    \vspace{0.1cm}
+    ((*elif sec.id == 'projects'*))
+    \section{Projects}
+        ((*for project in projects*))
+        ((*if project.link*))
+        \textbf{\href{(((project.link)))}{(((project.title))) | (((", ".join(project.technologies))))}}
+        ((*else*))
+        \textbf{(((project.title))) | (((", ".join(project.technologies))))}
+        ((*endif*))
+        \begin{highlights}
+            ((*for bullet in project.bullets*))
+                \item (((bullet.text)))
+            ((*endfor*))
+        \end{highlights}
+        ((*endfor*))
+    ((*elif sec.id == 'experience'*))
+    \section{Experience}
+        ((*for job in experience*))
+        \textbf{(((job.role))) | (((job.company))) | (((job.location)))} \hfill \textbf{(((job.start_date))) -- (((job.end_date)))}
+        \begin{highlights}
+            ((*for bullet in job.bullets*))
+                \item (((bullet.text)))
+            ((*endfor*))
+        \end{highlights}
+        ((*endfor*))
+    \vspace{0.1cm}
+    ((*elif sec.id == 'skills'*))
+    \section{Skills}
+        ((*for category in skills*))
+        \textbf{(((category.category))):} (((", ".join(category.skills))))((*if not loop.last*)) \\((*endif*))
+        ((*endfor*))
+    \vspace{0.1cm}
+    ((*elif sec.id == 'summary' and summary*))
+    \section{Summary}
+        (((summary)))
+    \vspace{0.1cm}
+    ((*endif*))
+    ((*endif*))
+    ((*endfor*))
+    ((*else*))
+    \section{Education}
         ((*for item in education*))
         \textbf{(((item.institution))), (((item.location)))} \hfill \textbf{(((item.start_date))) – (((item.end_date)))} \\
         (((item.degree))) in (((item.field_of_study))) \hfill ((*if item.gpa*))GPA: (((item.gpa)))((*endif*))
@@ -173,7 +222,7 @@
         ((*endif*))
         \begin{highlights}
             ((*for bullet in project.bullets*))
-                \item (((bullet)))
+                \item (((bullet.text)))
             ((*endfor*))
         \end{highlights}
         ((*endfor*))
@@ -183,7 +232,7 @@
         \textbf{(((job.role))) | (((job.company))) | (((job.location)))} \hfill \textbf{(((job.start_date))) -- (((job.end_date)))}
         \begin{highlights}
             ((*for bullet in job.bullets*))
-                \item (((bullet)))
+                \item (((bullet.text)))
             ((*endfor*))
         \end{highlights}
         ((*endfor*))
@@ -194,4 +243,5 @@
         \textbf{(((category.category))):} (((", ".join(category.skills))))((*if not loop.last*)) \\((*endif*))
         ((*endfor*))
     \vspace{0.1cm}
+    ((*endif*))
 \end{document}

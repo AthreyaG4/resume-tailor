@@ -61,7 +61,6 @@ async def process_resume(resume_id: UUID, resume: UploadFile, db):
         db.commit()
 
     except Exception as e:
-        print(f"Parse error: {e}")
         db_resume.status = ResumeStatus.ERROR
         db.commit()
 

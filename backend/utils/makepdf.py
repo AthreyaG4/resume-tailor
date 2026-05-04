@@ -6,7 +6,7 @@ import os
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def make_pdf(tailored_resume) -> bytes:
+def make_pdf(tailored_resume, section_order=None) -> bytes:
     def latex_escape(text):
         if not isinstance(text, str):
             return text
@@ -32,7 +32,11 @@ def make_pdf(tailored_resume) -> bytes:
     )
 
     template = env.get_template("resume.tex")
-    output = template.render(**tailored_resume.model_dump())
+    so = [
+        s.model_dump() if hasattr(s, "model_dump") else s
+        for s in (section_order.sections if section_order else [])
+    ]
+    output = template.render(**tailored_resume.model_dump(), section_order=so)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tex_path = os.path.join(tmpdir, "resume.tex")
@@ -41,20 +45,20 @@ def make_pdf(tailored_resume) -> bytes:
         with open(tex_path, "w") as f:
             f.write(output)
 
-            result = subprocess.run(
-                [
-                    "tectonic",
-                    "--outdir",
-                    tmpdir,
-                    tex_path,
-                ],
-                capture_output=True,
-                text=True,
-            )
+        result = subprocess.run(
+            [
+                "tectonic",
+                "--outdir",
+                tmpdir,
+                tex_path,
+            ],
+            capture_output=True,
+            text=True,
+        )
 
         if result.returncode != 0:
-            print("STDOUT:", result.stdout)
-            print("STDERR:", result.stderr)
+            print("Tectonic STDOUT:", result.stdout)
+            print("Tectonic STDERR:", result.stderr)
             raise subprocess.CalledProcessError(result.returncode, result.args)
 
         with open(pdf_path, "rb") as f:

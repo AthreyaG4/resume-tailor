@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, JSON, ForeignKey, Text, Enum
+from sqlalchemy import Column, String, DateTime, JSON, ForeignKey, Text, Enum, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from db import Base
@@ -61,12 +61,16 @@ class Application(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     company_name = Column(String, nullable=True)
     title = Column(String, nullable=True)
+    location = Column(String, nullable=True)
+    emp_type = Column(String, nullable=True)
     job_id = Column(String, nullable=False)
     job_description = Column(Text)
     skill_match_results = Column(JSON)
     tailored_resume_json = Column(JSON)
+    token_usage_log = Column(JSON, nullable=True)
     pdf_key = Column(String, nullable=True)
     latex = Column(String, nullable=True)
+    cover_letter = Column(Text, nullable=True)
     status = Column(
         Enum(ApplicationStatus), default=ApplicationStatus.TAILORING, nullable=False
     )
@@ -96,6 +100,8 @@ class ApplicationStep(Base):
     node = Column(String, nullable=False)
     label = Column(String, nullable=False)
     data = Column(JSON, nullable=True)
+    input_tokens = Column(Integer, nullable=True, default=0)
+    output_tokens = Column(Integer, nullable=True, default=0)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     application = relationship("Application", back_populates="steps")

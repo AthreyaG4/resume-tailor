@@ -31,5 +31,11 @@ class Settings(BaseSettings):
     # OpenAI
     OPENAI_API_KEY: str
 
+    # Anthropic
+    ANTHROPIC_API_KEY: str
+
+    # Tavily
+    TAVILY_API_KEY: str
+
 
 settings = Settings()  # type: ignore
