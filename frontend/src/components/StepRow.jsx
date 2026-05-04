@@ -9,11 +9,25 @@ const NODE_META = {
   project_selection_node: { label: "Project selection" },
   skill_selection_node: { label: "Skill selection" },
   execute_project_rewrite_node: { label: "Project rewrites" },
-  experience_rewrite_node: { label: "Experience rewrites" },
+  execute_experience_rewrite_node: { label: "Experience rewrites" },
+  certification_selection_review_node: { label: "Certifications & publications" },
+  summary_generation_node: { label: "Writing summary" },
+  summary_generation_review_node: { label: "Summary" },
+  section_order_node: { label: "Section order" },
+  cover_letter_review_node: { label: "Cover letter" },
+  cover_letter_node: { label: "Generating cover letter" },
   assemble_resume_node: { label: "Assembling resume" },
 };
 
-export function StepRow({ step, isActive, resumeJson, isLast }) {
+export function StepRow({
+  step,
+  isActive,
+  resumeJson,
+  jdKeywords,
+  appLocation,
+  appEmpType,
+  isLast,
+}) {
   const [collapsed, setCollapsed] = useState(false);
   const meta = NODE_META[step.node] || { label: step.label };
 
@@ -23,54 +37,56 @@ export function StepRow({ step, isActive, resumeJson, isLast }) {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
-      style={{ display: "flex", gap: 16, scrollMarginTop: 88 }}
+      className="flex gap-4 scroll-mt-[88px]"
     >
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div className="flex flex-col items-center">
         <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 12,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-            background: isActive ? "hsl(220 20% 95%)" : "#ecfdf5",
-            border: isActive ? "2px solid hsl(220 20% 78%)" : "2px solid #6ee7b7",
-          }}
+          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+            isActive
+              ? "bg-[hsl(220_20%_95%)] border-2 border-[hsl(220_20%_78%)]"
+              : "bg-emerald-50 border-2 border-emerald-300"
+          }`}
         >
           {isActive ? (
-            <Loader2 style={{ width: 16, height: 16, color: "hsl(220 20% 40%)" }} className="animate-spin" />
+            <Loader2 className="w-4 h-4 text-[hsl(220_20%_40%)] animate-spin" />
           ) : (
-            <CheckCircle2 style={{ width: 16, height: 16, color: "#10b981" }} />
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
           )}
         </div>
         {!isLast && (
-          <div style={{ width: 1, flexGrow: 1, background: "hsl(220 10% 90%)", marginTop: 4, minHeight: 16 }} />
+          <div className="w-px grow bg-[hsl(220_10%_90%)] mt-1 min-h-4" />
         )}
       </div>
 
-      <div style={{ flex: 1, paddingBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 36, marginBottom: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: isActive ? "hsl(220 20% 40%)" : "#1e293b", whiteSpace: "nowrap" }}>
+      <div className="flex-1 pb-5">
+        <div className="flex items-center justify-between min-h-9 mb-2">
+          <div className="flex items-center gap-2">
+            <span
+              className={`text-sm font-bold whitespace-nowrap ${isActive ? "text-[hsl(220_20%_40%)]" : "text-slate-800"}`}
+            >
               {meta.label}
             </span>
             {isActive && (
-              <span
-                style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: "hsl(220 20% 50%)" }}
-                className="animate-pulse"
-              >
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-[hsl(220_20%_50%)] animate-pulse">
                 Running…
+              </span>
+            )}
+            {!isActive && (step.input_tokens > 0 || step.output_tokens > 0) && (
+              <span className="text-[11px] text-slate-400 font-mono">
+                {(step.input_tokens + step.output_tokens).toLocaleString()} tokens
               </span>
             )}
           </div>
           {!isActive && step.data && (
             <button
               onClick={() => setCollapsed((c) => !c)}
-              style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", padding: 0 }}
+              className="bg-transparent border-none cursor-pointer text-slate-400 p-0"
             >
-              {collapsed ? <ChevronDown style={{ width: 15, height: 15 }} /> : <ChevronUp style={{ width: 15, height: 15 }} />}
+              {collapsed ? (
+                <ChevronDown className="w-[15px] h-[15px]" />
+              ) : (
+                <ChevronUp className="w-[15px] h-[15px]" />
+              )}
             </button>
           )}
         </div>
@@ -83,16 +99,15 @@ export function StepRow({ step, isActive, resumeJson, isLast }) {
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <div
-                style={{
-                  background: "#fff",
-                  border: "1px solid hsl(220 10% 91%)",
-                  borderRadius: 16,
-                  padding: "18px 20px",
-                  boxShadow: "0 1px 6px -2px rgba(0,0,0,.05)",
-                }}
-              >
-                <NodeDataRenderer node={step.node} data={step.data} resumeJson={resumeJson} />
+              <div className="bg-white border border-[hsl(220_10%_91%)] rounded-2xl p-[18px_20px] shadow-[0_1px_6px_-2px_rgba(0,0,0,0.05)]">
+                <NodeDataRenderer
+                  node={step.node}
+                  data={step.data}
+                  resumeJson={resumeJson}
+                  jdKeywords={jdKeywords}
+                  appLocation={appLocation}
+                  appEmpType={appEmpType}
+                />
               </div>
             </motion.div>
           )}

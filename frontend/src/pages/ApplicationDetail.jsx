@@ -25,19 +25,37 @@ const NODE_META = {
   project_selection_node: { label: "Project selection" },
   skill_selection_node: { label: "Skill selection" },
   execute_project_rewrite_node: { label: "Project rewrites" },
-  experience_rewrite_node: { label: "Experience rewrites" },
+  execute_experience_rewrite_node: { label: "Experience rewrites" },
+  certification_selection_review_node: { label: "Certifications & publications" },
+  summary_generation_review_node: { label: "Summary generation" },
+  section_order_node: { label: "Section order" },
+  cover_letter_review_node: { label: "Cover letter" },
+  cover_letter_node: { label: "Generating cover letter" },
   assemble_resume_node: { label: "Assembling resume" },
 };
 
-const TERMINAL_STATUSES = ["tailored", "interrupted", "failed", "applied", "interviewing", "rejected"];
-const POST_TAILOR_STATUSES = ["tailored", "applied", "interviewing", "rejected"];
+const TERMINAL_STATUSES = [
+  "tailored",
+  "interrupted",
+  "failed",
+  "applied",
+  "interviewing",
+  "rejected",
+];
+const POST_TAILOR_STATUSES = [
+  "tailored",
+  "applied",
+  "interviewing",
+  "rejected",
+];
 
 // ─── Main component ───────────────────────────────────────────────
 
 export default function ApplicationDetail() {
   const { id } = useParams();
   const { token } = useAuth();
-  const { sendApplicationFeedback, updateApplicationStatus } = useApplications();
+  const { sendApplicationFeedback, updateApplicationStatus } =
+    useApplications();
 
   const [application, setApplication] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -109,7 +127,19 @@ export default function ApplicationDetail() {
     );
   }
 
-  const { steps = [], status, current_node, pdf_key, resume_json } = application;
+  const {
+    steps = [],
+    status,
+    current_node,
+    pdf_key,
+    resume_json,
+    cover_letter,
+    token_usage_log,
+  } = application;
+
+  const jdKeywords =
+    steps.find((s) => s.node === "jd_parsing_node")?.data?.jd_json?.keywords ||
+    [];
 
   const isInterrupted = status === "interrupted";
   const isComplete = POST_TAILOR_STATUSES.includes(status);
@@ -119,26 +149,50 @@ export default function ApplicationDetail() {
 
   const interruptPayloads = application.interrupt_payloads || [];
 
-  const statusLabel = isInterrupted ? "Waiting for review" : isComplete ? "Complete" : isFailed ? "Failed" : "Tailoring...";
+  const statusLabel = isInterrupted
+    ? "Waiting for review"
+    : isComplete
+      ? "Complete"
+      : isFailed
+        ? "Failed"
+        : "Tailoring...";
   const statusStyle = isInterrupted
     ? { bg: "#fffbeb", color: "#b45309", border: "#fde68a" }
     : isComplete
-    ? { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" }
-    : isFailed
-    ? { bg: "#fff1f2", color: "#be123c", border: "#fecdd3" }
-    : { bg: "hsl(220 20% 96%)", color: "hsl(220 20% 40%)", border: "hsl(220 20% 85%)" };
+      ? { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" }
+      : isFailed
+        ? { bg: "#fff1f2", color: "#be123c", border: "#fecdd3" }
+        : {
+            bg: "hsl(220 20% 96%)",
+            color: "hsl(220 20% 40%)",
+            border: "hsl(220 20% 85%)",
+          };
 
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto", padding: "40px 32px 80px" }}>
+    <div
+      style={{ maxWidth: 1200, margin: "0 auto", padding: "40px 32px 80px" }}
+    >
       <div
-        style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 48, alignItems: "start" }}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "260px 1fr",
+          gap: 48,
+          alignItems: "start",
+        }}
         className="lg:grid block"
       >
         <Sidebar steps={steps} status={status} currentNode={current_node} />
 
         <div style={{ maxWidth: 760 }}>
           {/* Header */}
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 32 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              marginBottom: 32,
+            }}
+          >
             <div>
               <h1
                 style={{
@@ -153,7 +207,14 @@ export default function ApplicationDetail() {
               >
                 {application.title || "Application"}
               </h1>
-              <p style={{ fontSize: 13, fontWeight: 500, color: "#64748b", marginTop: 4 }}>
+              <p
+                style={{
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: "#64748b",
+                  marginTop: 4,
+                }}
+              >
                 {application.company_name || application.job_id}
               </p>
             </div>
@@ -202,13 +263,20 @@ export default function ApplicationDetail() {
 
           {/* Timeline */}
           <div>
-            {steps.map((step, i) => (
+            {steps
+              .filter((s) => s.node !== "cover_letter_review_node")
+              .map((step, i, arr) => (
               <StepRow
                 key={step.id}
                 step={step}
                 isActive={false}
                 resumeJson={resume_json}
-                isLast={i === steps.length - 1 && !hasActiveNode && !isInterrupted}
+                jdKeywords={jdKeywords}
+                appLocation={application.location}
+                appEmpType={application.emp_type}
+                isLast={
+                  i === arr.length - 1 && !hasActiveNode && !isInterrupted
+                }
               />
             ))}
 
@@ -216,7 +284,11 @@ export default function ApplicationDetail() {
               {hasActiveNode && (
                 <StepRow
                   key="active"
-                  step={{ node: current_node, label: NODE_META[current_node]?.label, data: null }}
+                  step={{
+                    node: current_node,
+                    label: NODE_META[current_node]?.label,
+                    data: null,
+                  }}
                   isActive={true}
                   resumeJson={resume_json}
                   isLast={true}
@@ -231,6 +303,7 @@ export default function ApplicationDetail() {
                   currentNode={current_node}
                   interruptPayloads={interruptPayloads}
                   resumeJson={resume_json}
+                  jdKeywords={jdKeywords}
                   onSubmit={handleFeedback}
                   isSubmitting={isSubmitting}
                 />
@@ -239,7 +312,13 @@ export default function ApplicationDetail() {
 
             <AnimatePresence>
               {isComplete && (
-                <CompleteBanner key="complete" pdfKey={pdf_key} latexContent={application.latex} />
+                <CompleteBanner
+                  key="complete"
+                  pdfKey={pdf_key}
+                  latexContent={application.latex}
+                  coverLetter={cover_letter}
+                  tokenUsageLog={token_usage_log}
+                />
               )}
             </AnimatePresence>
 
@@ -251,12 +330,41 @@ export default function ApplicationDetail() {
                   animate={{ opacity: 1 }}
                   style={{ display: "flex", gap: 16 }}
                 >
-                  <div style={{ width: 36, height: 36, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: "#fff1f2", border: "2px solid #fecdd3", flexShrink: 0 }}>
-                    <AlertCircle style={{ width: 16, height: 16, color: "#be123c" }} />
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 12,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: "#fff1f2",
+                      border: "2px solid #fecdd3",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <AlertCircle
+                      style={{ width: 16, height: 16, color: "#be123c" }}
+                    />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ background: "#fff1f2", border: "1px solid #fecdd3", borderRadius: 16, padding: "18px 20px" }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: "#be123c" }}>Something went wrong. Please try again.</p>
+                    <div
+                      style={{
+                        background: "#fff1f2",
+                        border: "1px solid #fecdd3",
+                        borderRadius: 16,
+                        padding: "18px 20px",
+                      }}
+                    >
+                      <p
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 700,
+                          color: "#be123c",
+                        }}
+                      >
+                        Something went wrong. Please try again.
+                      </p>
                     </div>
                   </div>
                 </motion.div>
