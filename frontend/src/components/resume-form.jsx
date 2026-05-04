@@ -8,7 +8,21 @@ import { Card, CardContent } from "../components/ui/card";
 import { Plus, Trash2, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export function ResumeForm({ defaultValues, onSubmit, isSubmitting }) {
+export function SectionCard({ title, action, children }) {
+  return (
+    <div className="bg-white/50 backdrop-blur-sm rounded-[2.5rem] border border-border/40 p-8 shadow-sm">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-display font-semibold text-primary">
+          {title}
+        </h2>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+export function ResumeForm({ defaultValues, onSubmit, projectsSlot, experienceSlot }) {
   const form = useForm({
     defaultValues: {
       name: "",
@@ -16,235 +30,94 @@ export function ResumeForm({ defaultValues, onSubmit, isSubmitting }) {
       phone: "",
       linkedin: "",
       github: "",
-      summary: "",
       skills: [],
-      experience: [],
-      projects: [],
       education: [],
+      certifications: [],
+      publications: [],
       ...defaultValues,
     },
   });
 
   const {
-    fields: expFields,
-    append: appendExp,
-    remove: removeExp,
-  } = useFieldArray({ control: form.control, name: "experience" });
-  const {
-    fields: projectFields,
-    append: appendProject,
-    remove: removeProject,
-  } = useFieldArray({ control: form.control, name: "projects" });
-  const {
     fields: eduFields,
     append: appendEdu,
     remove: removeEdu,
   } = useFieldArray({ control: form.control, name: "education" });
+
   const {
     fields: skillFields,
     append: appendSkill,
     remove: removeSkill,
   } = useFieldArray({ control: form.control, name: "skills" });
 
+  const {
+    fields: certFields,
+    append: appendCert,
+    remove: removeCert,
+  } = useFieldArray({ control: form.control, name: "certifications" });
+
+  const {
+    fields: pubFields,
+    append: appendPub,
+    remove: removePub,
+  } = useFieldArray({ control: form.control, name: "publications" });
+
   return (
     <form
+      id="resume-form"
       onSubmit={form.handleSubmit(onSubmit)}
-      className="space-y-12 max-w-4xl mx-auto"
+      className="space-y-6"
     >
-      {/* Personal Info */}
-      <section className="space-y-6">
-        <h2 className="text-2xl font-display font-semibold text-primary">
-          Personal Details
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {["name", "email", "phone", "linkedin", "github"].map((field) => (
-            <div key={field} className="space-y-2">
-              <Label>{field.charAt(0).toUpperCase() + field.slice(1)}</Label>
-              <Input {...form.register(field)} />
-            </div>
-          ))}
+      {/* Personal details */}
+      <SectionCard title="Personal details">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {["name", "email", "phone", "linkedin", "github"].map((field) => (
+              <div key={field} className="space-y-2">
+                <Label>{field.charAt(0).toUpperCase() + field.slice(1)}</Label>
+                <Input {...form.register(field)} />
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label>Summary</Label>
-          <Textarea {...form.register("summary")} className="min-h-[100px]" />
-        </div>
-      </section>
+      </SectionCard>
 
       {/* Skills */}
-      <section className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-display font-semibold text-primary">
-            Skills
-          </h2>
+      <SectionCard
+        title="Skills"
+        action={
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={() => appendSkill({ category: "", skills: [] })}
           >
-            <Plus className="w-4 h-4 mr-2" /> Add Category
+            <Plus className="w-4 h-4 mr-2" /> Add category
           </Button>
-        </div>
-        {skillFields.map((field, index) => (
-          <SkillCategoryField
-            key={field.id}
-            index={index}
-            form={form}
-            onRemove={() => removeSkill(index)}
-          />
-        ))}
-      </section>
-
-      {/* Experience */}
-      <section className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-display font-semibold text-primary">
-            Experience
-          </h2>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              appendExp({
-                company: "",
-                role: "",
-                location: "",
-                start_date: "",
-                end_date: "",
-                bullets: [],
-              })
-            }
-          >
-            <Plus className="w-4 h-4 mr-2" /> Add Position
-          </Button>
-        </div>
-        {expFields.map((field, index) => (
-          <Card key={field.id} className="relative group border-border/60">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 text-destructive"
-              onClick={() => removeExp(index)}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-            <CardContent className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Company</Label>
-                  <Input {...form.register(`experience.${index}.company`)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Role</Label>
-                  <Input {...form.register(`experience.${index}.role`)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Location</Label>
-                  <Input {...form.register(`experience.${index}.location`)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Start Date</Label>
-                  <Input
-                    {...form.register(`experience.${index}.start_date`)}
-                    placeholder="Jan 2020"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>End Date</Label>
-                  <Input
-                    {...form.register(`experience.${index}.end_date`)}
-                    placeholder="Present"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Description</Label>
-                <Textarea
-                  {...form.register(`experience.${index}.description`)}
-                  className="min-h-[150px]"
-                />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </section>
-
-      {/* Projects */}
-      <section className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-display font-semibold text-primary">
-            Projects
-          </h2>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              appendProject({
-                title: "",
-                description: "",
-                technologies: [],
-                bullets: [],
-                link: "",
-              })
-            }
-          >
-            <Plus className="w-4 h-4 mr-2" /> Add Project
-          </Button>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {projectFields.map((field, index) => (
-            <Card key={field.id} className="relative group border-border/60">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-destructive"
-                onClick={() => removeProject(index)}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-              <CardContent className="p-6 space-y-4">
-                <div className="space-y-2">
-                  <Label>Title</Label>
-                  <Input {...form.register(`projects.${index}.title`)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Link</Label>
-                  <Input
-                    {...form.register(`projects.${index}.link`)}
-                    placeholder="https://..."
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Textarea
-                    {...form.register(`projects.${index}.description`)}
-                    className="min-h-[300px]"
-                  />
-                </div>
-                <div className="space-y-3">
-                  <Label>Technologies</Label>
-                  <TechnologiesField
-                    control={form.control}
-                    index={index}
-                    form={form}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+        }
+      >
+        <div className="space-y-4">
+          {skillFields.map((field, index) => (
+            <SkillCategoryField
+              key={field.id}
+              index={index}
+              form={form}
+              onRemove={() => removeSkill(index)}
+            />
           ))}
         </div>
-      </section>
+      </SectionCard>
+
+      {/* Projects — rendered by parent */}
+      {projectsSlot}
+
+      {/* Experience — rendered by parent */}
+      {experienceSlot}
 
       {/* Education */}
-      <section className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-display font-semibold text-primary">
-            Education
-          </h2>
+      <SectionCard
+        title="Education"
+        action={
           <Button
             type="button"
             variant="outline"
@@ -261,186 +134,182 @@ export function ResumeForm({ defaultValues, onSubmit, isSubmitting }) {
               })
             }
           >
-            <Plus className="w-4 h-4 mr-2" /> Add Education
+            <Plus className="w-4 h-4 mr-2" /> Add education
           </Button>
+        }
+      >
+        <div className="space-y-4">
+          {eduFields.map((field, index) => (
+            <Card key={field.id} className="relative group border-border/60">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 text-destructive"
+                onClick={() => removeEdu(index)}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+              <CardContent className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Institution</Label>
+                    <Input
+                      {...form.register(`education.${index}.institution`)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Degree</Label>
+                    <Input {...form.register(`education.${index}.degree`)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Field of Study</Label>
+                    <Input
+                      {...form.register(`education.${index}.field_of_study`)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Start Date</Label>
+                    <Input
+                      {...form.register(`education.${index}.start_date`)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End Date</Label>
+                    <Input
+                      {...form.register(`education.${index}.end_date`)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>GPA</Label>
+                    <Input {...form.register(`education.${index}.gpa`)} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-        {eduFields.map((field, index) => (
-          <div
-            key={field.id}
-            className="flex gap-4 items-start bg-muted/30 p-4 rounded-lg group"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1">
-              <div className="space-y-2">
-                <Label>Institution</Label>
-                <Input {...form.register(`education.${index}.institution`)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Degree</Label>
-                <Input {...form.register(`education.${index}.degree`)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Field of Study</Label>
-                <Input
-                  {...form.register(`education.${index}.field_of_study`)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Start Date</Label>
-                <Input {...form.register(`education.${index}.start_date`)} />
-              </div>
-              <div className="space-y-2">
-                <Label>End Date</Label>
-                <Input {...form.register(`education.${index}.end_date`)} />
-              </div>
-              <div className="space-y-2">
-                <Label>GPA</Label>
-                <Input {...form.register(`education.${index}.gpa`)} />
-              </div>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="opacity-0 group-hover:opacity-100 text-destructive mt-8"
-              onClick={() => removeEdu(index)}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          </div>
-        ))}
-      </section>
+      </SectionCard>
 
-      <div className="sticky bottom-6 flex justify-end">
-        <Button
-          type="submit"
-          size="lg"
-          disabled={isSubmitting}
-          className="btn-primary shadow-2xl"
-        >
-          {isSubmitting ? "Saving..." : "Save Master Resume"}
-        </Button>
-      </div>
+      {/* Certifications */}
+      <SectionCard
+        title="Certifications"
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              appendCert({
+                name: "",
+                issuing_organization: "",
+                issue_date: "",
+                expiry_date: "",
+                credential_id: "",
+                credential_url: "",
+              })
+            }
+          >
+            <Plus className="w-4 h-4 mr-2" /> Add certification
+          </Button>
+        }
+      >
+        <div className="space-y-4">
+          {certFields.map((field, index) => (
+            <Card key={field.id} className="relative group border-border/60">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 text-destructive"
+                onClick={() => removeCert(index)}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+              <CardContent className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Name</Label>
+                    <Input {...form.register(`certifications.${index}.name`)} />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Issuing Organization</Label>
+                    <Input
+                      {...form.register(`certifications.${index}.issuing_organization`)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Issue Date</Label>
+                    <Input
+                      {...form.register(`certifications.${index}.issue_date`)}
+                      placeholder="e.g. Jan 2024"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Expiry Date</Label>
+                    <Input
+                      {...form.register(`certifications.${index}.expiry_date`)}
+                      placeholder="e.g. Jan 2027 or leave blank"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Credential ID</Label>
+                    <Input
+                      {...form.register(`certifications.${index}.credential_id`)}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-3">
+                    <Label>Credential URL</Label>
+                    <Input
+                      {...form.register(`certifications.${index}.credential_url`)}
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </SectionCard>
+
+      {/* Publications */}
+      <SectionCard
+        title="Publications"
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              appendPub({
+                title: "",
+                authors: [],
+                publication_venue: "",
+                publication_date: "",
+                url: "",
+                description: "",
+              })
+            }
+          >
+            <Plus className="w-4 h-4 mr-2" /> Add publication
+          </Button>
+        }
+      >
+        <div className="space-y-4">
+          {pubFields.map((field, index) => (
+            <PublicationField
+              key={field.id}
+              index={index}
+              form={form}
+              onRemove={() => removePub(index)}
+            />
+          ))}
+        </div>
+      </SectionCard>
     </form>
   );
 }
 
-function TechnologiesField({ control, index, form }) {
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: `projects.${index}.technologies`,
-  });
-  const [input, setInput] = useState("");
-
-  function handleAdd() {
-    const trimmed = input.trim();
-    if (!trimmed) return;
-    append(trimmed);
-    setInput("");
-  }
-
-  function handleKeyDown(e) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleAdd();
-    }
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-1.5 min-h-[32px]">
-        {fields.map((field, i) => (
-          <span
-            key={field.id}
-            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200"
-          >
-            {form.getValues(`projects.${index}.technologies.${i}`)}
-            <button
-              type="button"
-              onClick={() => remove(i)}
-              className="hover:text-red-500 transition-colors"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </span>
-        ))}
-      </div>
-      <div className="flex gap-2">
-        <Input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Add technology..."
-          className="text-sm"
-        />
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleAdd}
-          className="shrink-0"
-        >
-          Add
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-// Reusable bullets field component
-// function BulletsField({ form, name }) {
-//   const { fields, append, remove } = useFieldArray({
-//     control: form.control,
-//     name,
-//   });
-//   const [newBullet, setNewBullet] = useState("");
-
-//   return (
-//     <div className="space-y-2">
-//       <Label>Bullets</Label>
-//       <div className="space-y-2">
-//         {fields.map((field, i) => (
-//           <div key={field.id} className="flex gap-2 items-center">
-//             <Input {...form.register(`${name}.${i}`)} className="flex-1" />
-//             <Button
-//               type="button"
-//               variant="ghost"
-//               size="icon"
-//               onClick={() => remove(i)}
-//             >
-//               <X className="w-4 h-4" />
-//             </Button>
-//           </div>
-//         ))}
-//         <div className="flex gap-2">
-//           <Input
-//             value={newBullet}
-//             onChange={(e) => setNewBullet(e.target.value)}
-//             placeholder="Add bullet point..."
-//             onKeyDown={(e) => {
-//               if (e.key === "Enter") {
-//                 e.preventDefault();
-//                 append(newBullet);
-//                 setNewBullet("");
-//               }
-//             }}
-//           />
-//           <Button
-//             type="button"
-//             variant="outline"
-//             size="icon"
-//             onClick={() => {
-//               append(newBullet);
-//               setNewBullet("");
-//             }}
-//           >
-//             <Plus className="w-4 h-4" />
-//           </Button>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
-// Skill category field component
 function SkillCategoryField({ index, form, onRemove }) {
   const [newSkill, setNewSkill] = useState("");
   const skills = form.watch(`skills.${index}.skills`) || [];
@@ -522,6 +391,125 @@ function SkillCategoryField({ index, form, onRemove }) {
             >
               <Plus className="w-4 h-4" />
             </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PublicationField({ index, form, onRemove }) {
+  const [newAuthor, setNewAuthor] = useState("");
+  const authors = form.watch(`publications.${index}.authors`) || [];
+
+  const addAuthor = () => {
+    if (newAuthor.trim()) {
+      form.setValue(`publications.${index}.authors`, [...authors, newAuthor.trim()]);
+      setNewAuthor("");
+    }
+  };
+
+  const removeAuthor = (i) => {
+    form.setValue(
+      `publications.${index}.authors`,
+      authors.filter((_, idx) => idx !== i),
+    );
+  };
+
+  return (
+    <Card className="relative group border-border/60">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 text-destructive"
+        onClick={onRemove}
+      >
+        <Trash2 className="w-4 h-4" />
+      </Button>
+      <CardContent className="p-6 space-y-4">
+        <div className="space-y-2">
+          <Label>Title</Label>
+          <Input {...form.register(`publications.${index}.title`)} />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label>Venue</Label>
+            <Input
+              {...form.register(`publications.${index}.publication_venue`)}
+              placeholder="e.g. NeurIPS, Nature"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Date</Label>
+            <Input
+              {...form.register(`publications.${index}.publication_date`)}
+              placeholder="e.g. Dec 2023"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>URL</Label>
+            <Input
+              {...form.register(`publications.${index}.url`)}
+              placeholder="https://..."
+            />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Label>Description</Label>
+          <Textarea
+            {...form.register(`publications.${index}.description`)}
+            className="min-h-[80px]"
+            placeholder="Brief abstract or summary..."
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Authors</Label>
+          <div className="flex flex-wrap gap-2">
+            <AnimatePresence>
+              {authors.map((author, i) => (
+                <motion.div
+                  key={`${author}-${i}`}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                >
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => removeAuthor(i)}
+                    className="group hover:bg-destructive/10 hover:text-destructive pl-3 pr-2"
+                  >
+                    {author}
+                    <X className="w-3 h-3 ml-2 opacity-50 group-hover:opacity-100" />
+                  </Button>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+            <div className="flex gap-2">
+              <Input
+                value={newAuthor}
+                onChange={(e) => setNewAuthor(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addAuthor();
+                  }
+                }}
+                placeholder="Add author..."
+                className="w-40 h-8 text-sm"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={addAuthor}
+                className="h-8 w-8 p-0"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </CardContent>

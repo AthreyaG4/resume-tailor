@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { ResumeForm } from "../components/resume-form";
+import { useNavigate } from "react-router";
+import { ResumeForm, SectionCard } from "../components/resume-form";
+import { ProjectRow } from "../components/ProjectRow";
+import { ExperienceRow } from "../components/ExperienceRow";
 import { Button } from "../components/ui/button";
 import { Card } from "../components/ui/card";
 import {
@@ -11,6 +14,7 @@ import {
   Search,
   AlertCircle,
   Trash2,
+  Plus,
 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import { motion } from "framer-motion";
@@ -31,6 +35,7 @@ import { toast } from "../components/ui/sonner.jsx";
 export default function ResumePage() {
   const { resume, loading, parseResume, saveResume, deleteResume } =
     useResume();
+  const navigate = useNavigate();
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { "application/pdf": [".pdf"] },
@@ -186,19 +191,147 @@ export default function ResumePage() {
 
   if (resume.status == "success") {
     const initialData = resume?.resume_json;
+    const projects = resume.resume_json?.projects ?? [];
+
+    async function handleAddProject() {
+      const emptyProject = {
+        title: "New Project",
+        technologies: [],
+        link: null,
+        description: null,
+        role: null,
+        technical_decisions: null,
+        challenges: null,
+        achievements: [],
+        start_date: null,
+        end_date: null,
+        team_size: null,
+      };
+      const updatedProjects = [...projects, emptyProject];
+      await saveResume({ ...resume.resume_json, projects: updatedProjects });
+      navigate(`/resume/project/${updatedProjects.length - 1}`);
+    }
+
+    async function handleDeleteProject(index) {
+      const updatedProjects = projects.filter((_, i) => i !== index);
+      await saveResume({ ...resume.resume_json, projects: updatedProjects });
+    }
+
+    const experiences = resume.resume_json?.experience ?? [];
+
+    async function handleAddExperience() {
+      const emptyExp = {
+        company: "",
+        role: "New Position",
+        location: null,
+        start_date: null,
+        end_date: null,
+        technologies: [],
+        description: null,
+        emp_type: null,
+        industry: null,
+        seniority_ownership: null,
+        responsibilities: [],
+        technical_decisions: null,
+        achievements: [],
+        challenges_learnings: null,
+      };
+      const updated = [...experiences, emptyExp];
+      await saveResume({ ...resume.resume_json, experience: updated });
+      navigate(`/resume/experience/${updated.length - 1}`);
+    }
+
+    async function handleDeleteExperience(index) {
+      const updated = experiences.filter((_, i) => i !== index);
+      await saveResume({ ...resume.resume_json, experience: updated });
+    }
+
+    const experienceSlot = (
+      <SectionCard
+        title="Experience"
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleAddExperience}
+          >
+            <Plus className="w-4 h-4 mr-2" /> Add position
+          </Button>
+        }
+      >
+        <div className="space-y-2">
+          {experiences.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No experience yet. Add a position to get started.
+            </p>
+          ) : (
+            experiences.map((exp, i) => (
+              <ExperienceRow
+                key={i}
+                experience={exp}
+                onClick={() => navigate(`/resume/experience/${i}`)}
+                onDelete={() => handleDeleteExperience(i)}
+              />
+            ))
+          )}
+        </div>
+      </SectionCard>
+    );
+
+    const projectsSlot = (
+      <SectionCard
+        title="Projects"
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleAddProject}
+          >
+            <Plus className="w-4 h-4 mr-2" /> Add project
+          </Button>
+        }
+      >
+        <div className="space-y-2">
+          {projects.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No projects yet. Add one to get started.
+            </p>
+          ) : (
+            projects.map((project, i) => (
+              <ProjectRow
+                key={i}
+                project={project}
+                onClick={() => navigate(`/resume/project/${i}`)}
+                onDelete={() => handleDeleteProject(i)}
+              />
+            ))
+          )}
+        </div>
+      </SectionCard>
+    );
 
     return (
       <div className="max-w-5xl mx-auto py-8">
-        <div className="mb-12 flex items-center justify-between">
+        <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-4xl font-display font-black tracking-tight mb-2">
               Master Resume
             </h1>
             <p className="text-muted-foreground font-medium">
-              This is the base information used to tailor your applications.
+              Base information used to tailor your applications.
             </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <Button
+              type="submit"
+              form="resume-form"
+              size="lg"
+              className="btn-primary shadow-lg"
+            >
+              Save changes
+            </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
@@ -206,7 +339,7 @@ export default function ResumePage() {
                   className="h-10 px-4 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/5 font-bold transition-all"
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
-                  Clear Resume
+                  Clear
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent className="rounded-3xl border-border/60 shadow-2xl">
@@ -239,19 +372,24 @@ export default function ResumePage() {
           </div>
         </div>
 
-        <div className="bg-white/50 backdrop-blur-sm rounded-[2.5rem] border border-border/40 p-8 shadow-sm">
-          <ResumeForm
-            defaultValues={initialData}
-            onSubmit={(data) => {
-              try {
-                saveResume(data);
-                toast.success("Resume successfully saved");
-              } catch (err) {
-                toast.error(`Error saving resume: ${str(err)}`);
-              }
-            }}
-          />
-        </div>
+        <ResumeForm
+          key={resume.updated_at}
+          defaultValues={initialData}
+          projectsSlot={projectsSlot}
+          experienceSlot={experienceSlot}
+          onSubmit={async (data) => {
+            try {
+              await saveResume({
+                ...data,
+                projects: resume.resume_json?.projects ?? [],
+                experience: resume.resume_json?.experience ?? [],
+              });
+              toast.success("Resume successfully saved");
+            } catch (err) {
+              toast.error(`Error saving resume: ${err}`);
+            }
+          }}
+        />
       </div>
     );
   }

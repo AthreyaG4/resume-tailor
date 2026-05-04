@@ -17,6 +17,8 @@ import { useAuth } from "./hooks/useAuth";
 import { Loader2 } from "lucide-react";
 import { NotFoundPage } from "./pages/NotFound.jsx";
 import ResumePage from "./pages/Resume.jsx";
+import ProjectDetailPage from "./pages/ProjectDetail.jsx";
+import ExperienceDetailPage from "./pages/ExperienceDetail.jsx";
 import ApplicationDetail from "./pages/ApplicationDetail.jsx";
 
 function PublicRoute({ children }) {
@@ -77,6 +79,8 @@ const router = createBrowserRouter([
     children: [
       { path: "/dashboard", Component: Dashboard },
       { path: "/resume", Component: ResumePage },
+      { path: "/resume/project/:index", Component: ProjectDetailPage },
+      { path: "/resume/experience/:index", Component: ExperienceDetailPage },
       { path: "/applications/:id", Component: ApplicationDetail },
     ],
   },
